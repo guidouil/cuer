@@ -6,7 +6,9 @@ import { runInitCommand } from "./commands/initCommand.js";
 import { runPlanCommand } from "./commands/planCommand.js";
 import { runRunCommand } from "./commands/runCommand.js";
 import { runStatusCommand } from "./commands/statusCommand.js";
+import { runTaskHistoryCommand } from "./commands/taskHistoryCommand.js";
 import { runTasksCommand } from "./commands/tasksCommand.js";
+import { runUpdateTaskCommand } from "./commands/updateTaskCommand.js";
 import { ConsoleTerminal } from "./terminal.js";
 
 const terminal = new ConsoleTerminal();
@@ -32,6 +34,12 @@ async function main(): Promise<void> {
         return;
       case "run":
         await runRunCommand(rootPath, args, terminal);
+        return;
+      case "task-history":
+        runTaskHistoryCommand(rootPath, args, terminal);
+        return;
+      case "update-task":
+        runUpdateTaskCommand(rootPath, args, terminal);
         return;
       case "status":
         runStatusCommand(rootPath, terminal);
@@ -68,5 +76,7 @@ function printHelp(): void {
   terminal.info('  cuer plan "your objective"');
   terminal.info("  cuer tasks");
   terminal.info("  cuer run [--task <task-id>]");
+  terminal.info("  cuer task-history [--task <task-id>] [--limit <n>]");
+  terminal.info("  cuer update-task --status <status> [--task <task-id>] [--reason <text>] [--summary <text>]");
   terminal.info("  cuer status");
 }

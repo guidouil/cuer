@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
-import type { Plan, Task, TaskDependency } from "../domain/index.js";
+import type { Plan, Task, TaskDependency, TaskExecutionResultArtifact } from "../domain/index.js";
 
 import { normalizeWorkspaceConfig, type WorkspaceConfig } from "./config.js";
 
@@ -95,4 +95,37 @@ export function writeRunnerPrompt(
   const filePath = join(paths.promptsDir, `${payload.taskId}-${safeTitle || "task"}.md`);
   writeFileSync(filePath, payload.content, "utf8");
   return filePath;
+}
+
+export function writeExecutionResultArtifact(
+  paths: WorkspacePaths,
+  payload: {
+    artifact: TaskExecutionResultArtifact;
+  },
+): string {
+  const executionResultsDir = join(paths.artifactsDir, "execution-results");
+  mkdirSync(executionResultsDir, { recursive: true });
+
+  const safeTitle = payload.artifact.taskTitle
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 48);
+  const timestamp = payload.artifact.createdAt.replace(/[:.]/g, "-");
+  const filePath = join(
+    executionResultsDir,
+    `${timestamp}-${payload.artifact.taskId}-${safeTitle || "task"}.json`,
+  );
+
+  writeFileSync(filePath, `${JSON.stringify(payload.artifact, null, 2)}\n`, "utf8");
+  return filePath;
+}
+
+export function readExecutionResultArtifact(filePath: string): TaskExecutionResultArtifact {
+  const raw = readFileSync(filePath, "utf8");
+  return JSON.parse(raw) as TaskExecutionResultArtifact;
+}
+
+export function executionResultArtifactExists(filePath: string): boolean {
+  return existsSync(filePath);
 }

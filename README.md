@@ -15,6 +15,9 @@ V0 provides:
 - a simple isolated planner that generates an honest initial task graph
 - a task lifecycle engine that validates state transitions and keeps queue readiness synchronized
 - a first `run` command wired to an external runner port with a local manual handoff implementation
+- an explicit `update-task` command to report execution outcomes back into local state
+- a structured execution result artifact written locally under `.cuer/artifacts/`
+- a `task-history` command to inspect execution feedback without reading SQLite or JSON manually
 
 ## Prerequisites
 
@@ -42,6 +45,8 @@ cuer init
 cuer plan "Ship a first local workflow for task orchestration"
 cuer tasks
 cuer run
+cuer task-history
+cuer update-task --status done --summary "Scope clarified and constraints captured"
 cuer status
 ```
 
@@ -52,6 +57,8 @@ npm run dev -- init
 npm run dev -- plan "Ship a first local workflow for task orchestration"
 npm run dev -- tasks
 npm run dev -- run
+npm run dev -- task-history
+npm run dev -- update-task --status done --summary "Scope clarified and constraints captured"
 npm run dev -- status
 ```
 
@@ -73,7 +80,8 @@ After `cuer init`, the current directory receives:
 - `cuer.db`: local state store
 - `config.json`: workspace-local configuration
 - `plans/`: inspectable plan snapshots written as JSON
-- `artifacts/`, `logs/`, `prompts/`, `skills/`: reserved for later execution flows
+- `artifacts/`: execution artifacts and future run outputs
+- `logs/`, `prompts/`, `skills/`: reserved for later execution flows
 
 ## Repository structure
 
@@ -135,6 +143,24 @@ src/
 - shows the current project summary
 - reports the latest plan, queue counts, and recent events
 
+### `cuer task-history`
+
+- lists recent structured execution reports for the current project
+- accepts `--task` to filter on one task
+- accepts `--limit` to control how many entries are shown
+- resolves the linked execution artifact and displays a readable summary
+
+### `cuer update-task`
+
+- updates a task through the lifecycle engine
+- targets the single running task by default, or a specific task via `--task`
+- requires `--status`
+- accepts an optional `--reason`
+- accepts an optional `--summary`
+- writes a structured execution result artifact under `.cuer/artifacts/execution-results/`
+- records a dedicated `task.execution.reported` event with artifact metadata
+- updates plan status and queue availability consistently
+
 ## Data model
 
 V0 persists the following entities:
@@ -172,7 +198,6 @@ Task types:
 
 ## Next steps
 
-- add execution result ingestion so running tasks can move to `done` or `failed`
 - add richer runner adapters for external coding agents
 - add execution queue operations beyond single-task dispatch
 - add richer review and resume flows

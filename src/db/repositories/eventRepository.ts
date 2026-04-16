@@ -51,6 +51,37 @@ export class EventRepository {
 
     return rows.map(mapEvent);
   }
+
+  listTaskExecutionReportsByProjectId(projectId: string, limit = 10, taskId?: string): Event[] {
+    const rows = taskId
+      ? this.db
+          .prepare<[string, string, number], EventRow>(
+            `
+              SELECT id, project_id, plan_id, task_id, type, payload, created_at
+              FROM events
+              WHERE project_id = ?
+                AND type = 'task.execution.reported'
+                AND task_id = ?
+              ORDER BY created_at DESC
+              LIMIT ?
+            `,
+          )
+          .all(projectId, taskId, limit)
+      : this.db
+          .prepare<[string, number], EventRow>(
+            `
+              SELECT id, project_id, plan_id, task_id, type, payload, created_at
+              FROM events
+              WHERE project_id = ?
+                AND type = 'task.execution.reported'
+              ORDER BY created_at DESC
+              LIMIT ?
+            `,
+          )
+          .all(projectId, limit);
+
+    return rows.map(mapEvent);
+  }
 }
 
 function mapEvent(row: EventRow): Event {

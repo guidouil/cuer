@@ -2,6 +2,7 @@ import { getProjectStatus } from "../../core/context/projectStatus.js";
 import { WorkspaceContext } from "../../core/context/workspaceContext.js";
 import { RunService } from "../../core/run/runService.js";
 import { ManualExternalRunner } from "../../integrations/runners/manualExternalRunner.js";
+import { readOptionValue } from "../arguments.js";
 import { shortIdentifier } from "../format.js";
 
 import type { Terminal } from "../terminal.js";
@@ -45,11 +46,5 @@ export async function runRunCommand(rootPath: string, args: string[], terminal: 
 }
 
 function readTaskId(args: string[]): string | undefined {
-  const taskIndex = args.findIndex((value) => value === "--task" || value === "--task-id");
-  if (taskIndex < 0) {
-    return undefined;
-  }
-
-  const taskId = args[taskIndex + 1];
-  return taskId?.trim() || undefined;
+  return readOptionValue(args, ["--task", "--task-id"]);
 }
