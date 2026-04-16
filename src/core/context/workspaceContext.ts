@@ -1,0 +1,101 @@
+import type { Project } from "../../domain/index.js";
+import { CuerDatabase } from "../../db/database.js";
+import { createRepositories, type RepositorySet } from "../../db/repositories/index.js";
+import { createWorkspaceConfig, normalizeWorkspaceConfig } from "../../filesystem/config.js";
+import {
+  ensureWorkspaceDirectories,
+  inferProjectName,
+  readWorkspaceConfig,
+  resolveWorkspacePaths,
+  type WorkspacePaths,
+  workspaceExists,
+  writeWorkspaceConfig,
+} from "../../filesystem/workspace.js";
+import { createId } from "../../utils/id.js";
+import { nowIso } from "../../utils/time.js";
+
+import type { WorkspaceConfig } from "../../filesystem/config.js";
+
+export interface EnsureProjectResult {
+  created: boolean;
+  project: Project;
+}
+
+export interface OpenWorkspaceOptions {
+  autoInitialize?: boolean;
+}
+
+export class WorkspaceContext {
+  readonly repositories: RepositorySet;
+
+  private constructor(
+    readonly paths: WorkspacePaths,
+    readonly config: WorkspaceConfig,
+    readonly database: CuerDatabase,
+  ) {
+    this.repositories = createRepositories(database.connection);
+  }
+
+  static open(rootPath: string, options: OpenWorkspaceOptions = {}): WorkspaceContext {
+    const paths = resolveWorkspacePaths(rootPath);
+    const present = workspaceExists(paths);
+
+    if (!present && !options.autoInitialize) {
+      throw new Error(`No Cuer workspace found in ${rootPath}. Run "cuer init" first.`);
+    }
+
+    ensureWorkspaceDirectories(paths);
+
+    let config = readWorkspaceConfig(paths);
+    if (!config) {
+      const createdAt = nowIso();
+      config = createWorkspaceConfig({
+        projectName: inferProjectName(rootPath),
+        projectRoot: rootPath,
+        createdAt,
+      });
+      writeWorkspaceConfig(paths, config);
+    } else {
+      const normalizedConfig = normalizeWorkspaceConfig(config, {
+        projectName: inferProjectName(rootPath),
+        projectRoot: rootPath,
+        createdAt: config.createdAt,
+      });
+      config = normalizedConfig;
+      writeWorkspaceConfig(paths, normalizedConfig);
+    }
+
+    const database = new CuerDatabase(paths.dbPath);
+    return new WorkspaceContext(paths, config, database);
+  }
+
+  close(): void {
+    this.database.close();
+  }
+
+  ensureProject(): EnsureProjectResult {
+    const existing = this.repositories.projects.findByRootPath(this.paths.rootPath);
+    if (existing) {
+      return {
+        created: false,
+        project: existing,
+      };
+    }
+
+    const timestamp = nowIso();
+    const project: Project = {
+      id: createId("project"),
+      name: this.config.projectName,
+      rootPath: this.paths.rootPath,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+
+    this.repositories.projects.create(project);
+
+    return {
+      created: true,
+      project,
+    };
+  }
+}

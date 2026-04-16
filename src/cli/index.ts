@@ -1,0 +1,72 @@
+#!/usr/bin/env node
+
+import { cwd, exitCode, platform } from "node:process";
+
+import { runInitCommand } from "./commands/initCommand.js";
+import { runPlanCommand } from "./commands/planCommand.js";
+import { runRunCommand } from "./commands/runCommand.js";
+import { runStatusCommand } from "./commands/statusCommand.js";
+import { runTasksCommand } from "./commands/tasksCommand.js";
+import { ConsoleTerminal } from "./terminal.js";
+
+const terminal = new ConsoleTerminal();
+
+void main();
+
+async function main(): Promise<void> {
+  try {
+    assertSupportedPlatform();
+
+    const [command, ...args] = process.argv.slice(2);
+    const rootPath = cwd();
+
+    switch (command) {
+      case "init":
+        runInitCommand(rootPath, terminal);
+        return;
+      case "plan":
+        await runPlanCommand(rootPath, args, terminal);
+        return;
+      case "tasks":
+        runTasksCommand(rootPath, terminal);
+        return;
+      case "run":
+        await runRunCommand(rootPath, args, terminal);
+        return;
+      case "status":
+        runStatusCommand(rootPath, terminal);
+        return;
+      case "help":
+      case "--help":
+      case "-h":
+      case undefined:
+        printHelp();
+        return;
+      default:
+        throw new Error(`Unknown command "${command}". Run "cuer help" for usage.`);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    terminal.error(`Error: ${message}`);
+    process.exitCode = 1;
+  }
+}
+
+function assertSupportedPlatform(): void {
+  if (platform === "darwin" || platform === "linux") {
+    return;
+  }
+
+  throw new Error(`Unsupported platform "${platform}". Cuer currently supports macOS and Linux.`);
+}
+
+function printHelp(): void {
+  terminal.info("Cuer");
+  terminal.info("");
+  terminal.info("Usage:");
+  terminal.info("  cuer init");
+  terminal.info('  cuer plan "your objective"');
+  terminal.info("  cuer tasks");
+  terminal.info("  cuer run [--task <task-id>]");
+  terminal.info("  cuer status");
+}

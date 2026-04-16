@@ -1,12 +1,30 @@
 {
   "name": "cuer",
-  "version": "1.0.0",
-  "description": "Your agents need a conductor.",
+  "version": "0.1.0",
+  "description": "Local-first agentic development orchestrator for the terminal.",
   "license": "MIT",
   "author": "Guidouil",
   "type": "module",
-  "main": "index.ts",
+  "bin": {
+    "cuer": "dist/cli/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "npm run clean && tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "dev": "tsx src/cli/index.ts",
+    "start": "node dist/cli/index.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.9.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^24.9.2",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2"
   }
 }
