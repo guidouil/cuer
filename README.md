@@ -20,6 +20,7 @@ V0 provides:
 - a `task-history` command to inspect execution feedback without reading SQLite or JSON manually
 - a `show-artifact` command to inspect one execution artifact in detail
 - a `show-task` command to inspect one task with state, dependencies, prompt, events, and artifacts
+- a `show-plan` command to inspect the current task graph with dependencies and latest artifacts
 
 ## Prerequisites
 
@@ -49,6 +50,7 @@ cuer tasks
 cuer run
 cuer task-history
 cuer show-artifact --task <task-id>
+cuer show-plan
 cuer show-task --task <task-id>
 cuer update-task --status done --summary "Scope clarified and constraints captured"
 cuer status
@@ -63,6 +65,7 @@ npm run dev -- tasks
 npm run dev -- run
 npm run dev -- task-history
 npm run dev -- show-artifact --task <task-id>
+npm run dev -- show-plan
 npm run dev -- show-task --task <task-id>
 npm run dev -- update-task --status done --summary "Scope clarified and constraints captured"
 npm run dev -- status
@@ -161,6 +164,12 @@ src/
 - shows one execution artifact in detail
 - accepts either `--task` to resolve the latest artifact for that task, or `--artifact` to resolve one explicit artifact id
 - reads the linked artifact JSON and renders its metadata in a readable format
+
+### `cuer show-plan`
+
+- shows the latest plan in a consolidated view
+- renders task ids, statuses, dependencies, and the latest known artifact summary per task
+- includes a queue summary and a compact artifact reference section
 
 ### `cuer show-task`
 

@@ -1,5 +1,6 @@
 import type { Event, Task } from "../domain/index.js";
 import { truncate } from "../utils/text.js";
+import type { PlanInspectionTaskView } from "../core/context/planInspectionService.js";
 
 export function renderTable(headers: string[], rows: string[][]): string {
   const widths = headers.map((header, columnIndex) => {
@@ -37,6 +38,29 @@ export function renderTaskRows(tasks: Task[], dependencyTitles: Map<string, stri
 
 export function renderEventLines(events: Event[]): string[] {
   return events.map((event) => `${event.createdAt}  ${event.type}`);
+}
+
+export function renderPlanTaskRows(
+  entries: PlanInspectionTaskView[],
+  dependencyTitles: Map<string, string[]>,
+): string[][] {
+  return entries.map((entry) => {
+    const task = entry.task;
+    const dependsOn = dependencyTitles.get(task.id) ?? [];
+    const artifactSummary = entry.latestArtifact
+      ? truncate(entry.latestArtifact.summary, 32)
+      : "-";
+
+    return [
+      shortIdentifier(task.id),
+      task.status,
+      String(task.priority),
+      task.type,
+      dependsOn.length > 0 ? truncate(dependsOn.join(", "), 30) : "-",
+      artifactSummary,
+      truncate(task.title, 40),
+    ];
+  });
 }
 
 export function shortIdentifier(value: string): string {
