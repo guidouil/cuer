@@ -18,6 +18,8 @@ V0 provides:
 - an explicit `update-task` command to report execution outcomes back into local state
 - a structured execution result artifact written locally under `.cuer/artifacts/`
 - a `task-history` command to inspect execution feedback without reading SQLite or JSON manually
+- a `show-artifact` command to inspect one execution artifact in detail
+- a `show-task` command to inspect one task with state, dependencies, prompt, events, and artifacts
 
 ## Prerequisites
 
@@ -46,6 +48,8 @@ cuer plan "Ship a first local workflow for task orchestration"
 cuer tasks
 cuer run
 cuer task-history
+cuer show-artifact --task <task-id>
+cuer show-task --task <task-id>
 cuer update-task --status done --summary "Scope clarified and constraints captured"
 cuer status
 ```
@@ -58,6 +62,8 @@ npm run dev -- plan "Ship a first local workflow for task orchestration"
 npm run dev -- tasks
 npm run dev -- run
 npm run dev -- task-history
+npm run dev -- show-artifact --task <task-id>
+npm run dev -- show-task --task <task-id>
 npm run dev -- update-task --status done --summary "Scope clarified and constraints captured"
 npm run dev -- status
 ```
@@ -149,6 +155,18 @@ src/
 - accepts `--task` to filter on one task
 - accepts `--limit` to control how many entries are shown
 - resolves the linked execution artifact and displays a readable summary
+
+### `cuer show-artifact`
+
+- shows one execution artifact in detail
+- accepts either `--task` to resolve the latest artifact for that task, or `--artifact` to resolve one explicit artifact id
+- reads the linked artifact JSON and renders its metadata in a readable format
+
+### `cuer show-task`
+
+- shows one task in a consolidated view
+- accepts `--task`, or falls back to the single running task when that is unambiguous
+- renders current state, dependencies, dependents, recent events, latest run prompt, and latest artifacts
 
 ### `cuer update-task`
 

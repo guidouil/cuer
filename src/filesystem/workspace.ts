@@ -129,3 +129,11 @@ export function readExecutionResultArtifact(filePath: string): TaskExecutionResu
 export function executionResultArtifactExists(filePath: string): boolean {
   return existsSync(filePath);
 }
+
+export function readTextFileIfExists(filePath: string): string | null {
+  if (!existsSync(filePath)) {
+    return null;
+  }
+
+  return readFileSync(filePath, "utf8");
+}

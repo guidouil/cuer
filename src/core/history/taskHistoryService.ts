@@ -10,6 +10,7 @@ export interface TaskHistoryOptions {
 
 export interface TaskHistoryEntry {
   artifact: TaskExecutionResultArtifact | null;
+  artifactId: string;
   artifactFound: boolean;
   artifactPath: string;
   createdAt: string;
@@ -30,33 +31,51 @@ export class TaskHistoryService {
       options.taskId,
     );
 
-    return events.flatMap((event) => {
-      const payload = parseExecutionReportedPayload(event);
-      if (!payload || !event.taskId) {
-        return [];
-      }
-
-      const artifactFound = executionResultArtifactExists(payload.artifactPath);
-      const artifact = artifactFound ? readExecutionResultArtifact(payload.artifactPath) : null;
-      const fallbackTask = artifact ? null : context.repositories.tasks.findById(event.taskId);
-
-      return [
-        {
-          artifact,
-          artifactFound,
-          artifactPath: payload.artifactPath,
-          createdAt: event.createdAt,
-          nextStatus: payload.nextStatus,
-          previousStatus: payload.previousStatus,
-          reason: payload.reason,
-          source: payload.source,
-          summary: payload.summary,
-          taskId: event.taskId,
-          taskTitle: artifact?.taskTitle ?? fallbackTask?.title ?? event.taskId,
-        },
-      ];
-    });
+    return events.flatMap((event) => mapExecutionEventToEntry(context, event));
   }
+
+  getArtifactById(context: WorkspaceContext, project: Project, artifactId: string): TaskHistoryEntry | null {
+    const event = context.repositories.events.findTaskExecutionReportByArtifactId(project.id, artifactId);
+    if (!event) {
+      return null;
+    }
+
+    const [entry] = mapExecutionEventToEntry(context, event);
+    return entry ?? null;
+  }
+
+  getLatestArtifactForTask(context: WorkspaceContext, project: Project, taskId: string): TaskHistoryEntry | null {
+    const [entry] = this.listHistory(context, project, { limit: 1, taskId });
+    return entry ?? null;
+  }
+}
+
+function mapExecutionEventToEntry(context: WorkspaceContext, event: Event): TaskHistoryEntry[] {
+  const payload = parseExecutionReportedPayload(event);
+  if (!payload || !event.taskId) {
+    return [];
+  }
+
+  const artifactFound = executionResultArtifactExists(payload.artifactPath);
+  const artifact = artifactFound ? readExecutionResultArtifact(payload.artifactPath) : null;
+  const fallbackTask = artifact ? null : context.repositories.tasks.findById(event.taskId);
+
+  return [
+    {
+      artifact,
+      artifactId: payload.artifactId,
+      artifactFound,
+      artifactPath: payload.artifactPath,
+      createdAt: event.createdAt,
+      nextStatus: payload.nextStatus,
+      previousStatus: payload.previousStatus,
+      reason: payload.reason,
+      source: payload.source,
+      summary: payload.summary,
+      taskId: event.taskId,
+      taskTitle: artifact?.taskTitle ?? fallbackTask?.title ?? event.taskId,
+    },
+  ];
 }
 
 function parseExecutionReportedPayload(event: Event): TaskExecutionReportedEventPayload | null {

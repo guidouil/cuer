@@ -82,6 +82,59 @@ export class EventRepository {
 
     return rows.map(mapEvent);
   }
+
+  findTaskExecutionReportByArtifactId(projectId: string, artifactId: string): Event | null {
+    const row = this.db
+      .prepare<[string, string], EventRow>(
+        `
+          SELECT id, project_id, plan_id, task_id, type, payload, created_at
+          FROM events
+          WHERE project_id = ?
+            AND type = 'task.execution.reported'
+            AND json_extract(payload, '$.artifactId') = ?
+          ORDER BY created_at DESC
+          LIMIT 1
+        `,
+      )
+      .get(projectId, artifactId);
+
+    return row ? mapEvent(row) : null;
+  }
+
+  listByTaskId(projectId: string, taskId: string, limit = 10): Event[] {
+    const rows = this.db
+      .prepare<[string, string, number], EventRow>(
+        `
+          SELECT id, project_id, plan_id, task_id, type, payload, created_at
+          FROM events
+          WHERE project_id = ?
+            AND task_id = ?
+          ORDER BY created_at DESC
+          LIMIT ?
+        `,
+      )
+      .all(projectId, taskId, limit);
+
+    return rows.map(mapEvent);
+  }
+
+  findLatestByTaskIdAndType(projectId: string, taskId: string, type: string): Event | null {
+    const row = this.db
+      .prepare<[string, string, string], EventRow>(
+        `
+          SELECT id, project_id, plan_id, task_id, type, payload, created_at
+          FROM events
+          WHERE project_id = ?
+            AND task_id = ?
+            AND type = ?
+          ORDER BY created_at DESC
+          LIMIT 1
+        `,
+      )
+      .get(projectId, taskId, type);
+
+    return row ? mapEvent(row) : null;
+  }
 }
 
 function mapEvent(row: EventRow): Event {

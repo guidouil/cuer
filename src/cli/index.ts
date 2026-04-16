@@ -5,6 +5,8 @@ import { cwd, exitCode, platform } from "node:process";
 import { runInitCommand } from "./commands/initCommand.js";
 import { runPlanCommand } from "./commands/planCommand.js";
 import { runRunCommand } from "./commands/runCommand.js";
+import { runShowArtifactCommand } from "./commands/showArtifactCommand.js";
+import { runShowTaskCommand } from "./commands/showTaskCommand.js";
 import { runStatusCommand } from "./commands/statusCommand.js";
 import { runTaskHistoryCommand } from "./commands/taskHistoryCommand.js";
 import { runTasksCommand } from "./commands/tasksCommand.js";
@@ -37,6 +39,12 @@ async function main(): Promise<void> {
         return;
       case "task-history":
         runTaskHistoryCommand(rootPath, args, terminal);
+        return;
+      case "show-artifact":
+        runShowArtifactCommand(rootPath, args, terminal);
+        return;
+      case "show-task":
+        runShowTaskCommand(rootPath, args, terminal);
         return;
       case "update-task":
         runUpdateTaskCommand(rootPath, args, terminal);
@@ -77,6 +85,8 @@ function printHelp(): void {
   terminal.info("  cuer tasks");
   terminal.info("  cuer run [--task <task-id>]");
   terminal.info("  cuer task-history [--task <task-id>] [--limit <n>]");
+  terminal.info("  cuer show-artifact (--task <task-id> | --artifact <artifact-id>)");
+  terminal.info("  cuer show-task [--task <task-id>]");
   terminal.info("  cuer update-task --status <status> [--task <task-id>] [--reason <text>] [--summary <text>]");
   terminal.info("  cuer status");
 }
