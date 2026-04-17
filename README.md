@@ -4,6 +4,8 @@ Cuer is a local-first orchestrator for agentic development.
 
 It is not a chatbot, not a thin planner, and not an IDE. The first delivery focuses on a terminal workflow that can turn a development objective into a local plan, persist that state in SQLite, and prepare the architecture for `run`, `review`, and `resume` commands.
 
+The repository now also includes a first Tauri desktop shell that reuses the same Node.js/TypeScript planner orchestration instead of rebuilding it in the frontend.
+
 ## Current scope
 
 V0 provides:
@@ -34,6 +36,8 @@ V0 provides:
 ```bash
 npm install
 ```
+
+For the desktop app, you also need a working Rust toolchain because Tauri builds a native shell.
 
 For development without building:
 
@@ -84,6 +88,45 @@ npm run dev -- update-task --status done --summary "Scope clarified and constrai
 npm run dev -- status
 ```
 
+## Desktop app
+
+Run the first desktop milestone with:
+
+```bash
+npm run tauri:dev
+```
+
+That command:
+
+- builds the shared Node.js/TypeScript core into `dist/`
+- starts the Vite desktop frontend
+- starts the Tauri native shell
+
+On the first run, Tauri may take longer while Cargo compiles the desktop dependencies.
+
+The desktop app currently provides:
+
+- a home screen with the workspace path, current config summary, and local project list
+- a planner screen with a real prompt form
+- planner results rendered as questions or a task list
+- a raw backend response panel for debugging
+
+## Desktop architecture
+
+Reused:
+
+- `src/core/planner/*` for plan creation and planner JSON parsing
+- `src/core/context/workspaceContext.ts` for local workspace/bootstrap behavior
+- `src/db/*` and `src/filesystem/*` for persistence and local state
+- the CLI `plan` behavior, now routed through the same shared service as desktop
+
+Added:
+
+- `src/core/app/workspaceAppService.ts` as the shared application service for CLI and desktop
+- `src/desktop/bridgeCli.ts` as a thin Node bridge that exposes JSON to the Tauri shell
+- `src-tauri/` as the native desktop entrypoint
+- `desktop/` as the minimal frontend UI
+
 ## Workspace layout
 
 After `cuer init`, the current directory receives:
@@ -112,12 +155,14 @@ src/
   cli/
     commands/
   core/
+    app/
     planner/
     graph/
     queue/
     context/
     run/
     review/
+  desktop/
   db/
     schema/
     repositories/
@@ -125,6 +170,8 @@ src/
   domain/
   integrations/
   utils/
+desktop/
+src-tauri/
 ```
 
 ## Command behavior

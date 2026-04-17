@@ -1,4 +1,6 @@
 node_modules/
 dist/
+dist-desktop/
 .DS_Store
 .cuer/
+src-tauri/target/

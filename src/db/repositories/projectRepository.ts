@@ -13,6 +13,20 @@ interface ProjectRow {
 export class ProjectRepository {
   constructor(private readonly db: BetterSqlite3.Database) {}
 
+  listAll(): Project[] {
+    const rows = this.db
+      .prepare<[], ProjectRow>(
+        `
+          SELECT id, name, root_path, created_at, updated_at
+          FROM projects
+          ORDER BY created_at ASC
+        `,
+      )
+      .all();
+
+    return rows.map(mapProject);
+  }
+
   findByRootPath(rootPath: string): Project | null {
     const row = this.db
       .prepare<[string], ProjectRow>(

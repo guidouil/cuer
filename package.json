@@ -19,19 +19,27 @@
   "scripts": {
     "build": "npm run clean && tsc -p tsconfig.json",
     "clean": "rm -rf dist",
+    "desktop:build": "vite build",
+    "desktop:dev": "vite",
     "dev": "tsx src/cli/index.ts",
     "install:local": "npm install --global --prefix \"${CUER_NPM_PREFIX:-$HOME/.local}\" .",
     "prepare": "npm run build",
     "start": "node dist/cli/index.js",
+    "tauri:build": "npm run build && tauri build",
+    "tauri:dev": "npm run build && tauri dev",
+    "tauri": "tauri",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.10.1",
     "better-sqlite3": "^12.9.0"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.10.1",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.9.2",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.2",
+    "vite": "^6.4.2"
   }
 }
