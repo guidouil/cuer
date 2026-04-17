@@ -13,6 +13,7 @@ V0 provides:
 - a local SQLite database powered by `better-sqlite3`
 - explicit domain entities for projects, plans, tasks, task dependencies, and events
 - a simple isolated planner that generates an honest initial task graph
+- ingestion of strict external planner JSON responses compatible with `planner.md`
 - a task lifecycle engine that validates state transitions and keeps queue readiness synchronized
 - a first `run` command wired to an external runner port with a local manual handoff implementation
 - an explicit `update-task` command to report execution outcomes back into local state
@@ -32,7 +33,6 @@ V0 provides:
 
 ```bash
 npm install
-npm run build
 ```
 
 For development without building:
@@ -41,11 +41,23 @@ For development without building:
 npm run dev -- help
 ```
 
+For a real local CLI install without publishing, use a user-local npm prefix:
+
+```bash
+npm install
+npm run install:local
+export PATH="$HOME/.local/bin:$PATH"
+cuer help
+```
+
+`npm run install:local` installs the current repository as a local global package under `~/.local/` and exposes the `cuer` binary from there. To install into another prefix, set `CUER_NPM_PREFIX` before running the command.
+
 ## Available commands
 
 ```bash
 cuer init
 cuer plan "Ship a first local workflow for task orchestration"
+cuer plan --planner-response planner-result.json --planner anthropic:claude --goal "Ship a first local workflow for task orchestration"
 cuer tasks
 cuer run
 cuer task-history
@@ -61,6 +73,7 @@ Equivalent dev usage:
 ```bash
 npm run dev -- init
 npm run dev -- plan "Ship a first local workflow for task orchestration"
+npm run dev -- plan --planner-response planner-result.json --planner anthropic:claude --goal "Ship a first local workflow for task orchestration"
 npm run dev -- tasks
 npm run dev -- run
 npm run dev -- task-history
@@ -129,7 +142,11 @@ src/
 - accepts a goal as arguments or prompts for it
 - initializes the workspace if missing
 - creates the project record if needed
-- generates a simple initial plan with atomic tasks
+- generates a simple initial plan with atomic tasks by default
+- accepts `--planner-response <file>` or `--planner-response -` to ingest a strict external JSON response
+- accepts `--planner <name>` to record the provider or planner label used for the external response
+- validates the external response against the `planner.md` schema before persisting anything
+- renders clarification questions when the external response is in `ask_user` mode
 - stores the plan, tasks, dependencies, and events in SQLite
 - writes a JSON snapshot to `.cuer/plans/`
 
@@ -209,11 +226,38 @@ Task statuses:
 
 Task types:
 
+- `clarification`
 - `analysis`
-- `code`
+- `implementation`
 - `test`
-- `docs`
-- `review`
+- `documentation`
+- `deployment`
+
+Legacy stored plans may still display older task types such as `code`, `docs`, or `review`.
+
+## Structured planner JSON
+
+`planner.md` defines a provider-neutral contract. Cuer only expects valid JSON that matches that schema; it does not depend on any provider SDK.
+
+Recommended flow:
+
+1. Send the user request plus `planner.md` to the provider of your choice.
+2. Force a JSON-only response.
+3. Save the response to a file, or pipe it to stdin.
+4. Ingest it with:
+
+```bash
+cuer plan --planner-response planner-result.json --planner openai:gpt-5 --goal "Your objective"
+```
+
+Or:
+
+```bash
+provider-wrapper ... | cuer plan --planner-response - --planner mistral:large --goal "Your objective"
+```
+
+If the response mode is `create_plan`, Cuer persists the plan and task graph.
+If the response mode is `ask_user`, Cuer prints the blocking questions and records the inquiry event locally.
 
 ## Limits of V0
 

@@ -137,3 +137,7 @@ export function readTextFileIfExists(filePath: string): string | null {
 
   return readFileSync(filePath, "utf8");
 }
+
+export function readTextFile(filePath: string): string {
+  return readFileSync(filePath, "utf8");
+}

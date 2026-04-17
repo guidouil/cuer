@@ -1,6 +1,6 @@
 import type BetterSqlite3 from "better-sqlite3";
 
-import type { Task } from "../../domain/index.js";
+import type { Task, TaskDetails } from "../../domain/index.js";
 
 interface TaskRow {
   id: string;
@@ -12,6 +12,7 @@ interface TaskRow {
   priority: number;
   type: Task["type"];
   acceptance_criteria: string;
+  details_json: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -32,6 +33,7 @@ export class TaskRepository {
           priority,
           type,
           acceptance_criteria,
+          details_json,
           created_at,
           updated_at
         )
@@ -45,6 +47,7 @@ export class TaskRepository {
           @priority,
           @type,
           @acceptanceCriteria,
+          @detailsJson,
           @createdAt,
           @updatedAt
         )
@@ -63,6 +66,7 @@ export class TaskRepository {
           priority: task.priority,
           type: task.type,
           acceptanceCriteria: JSON.stringify(task.acceptanceCriteria),
+          detailsJson: task.details ? JSON.stringify(task.details) : null,
           createdAt: task.createdAt,
           updatedAt: task.updatedAt,
         });
@@ -86,6 +90,7 @@ export class TaskRepository {
             priority,
             type,
             acceptance_criteria,
+            details_json,
             created_at,
             updated_at
           FROM tasks
@@ -112,6 +117,7 @@ export class TaskRepository {
             priority,
             type,
             acceptance_criteria,
+            details_json,
             created_at,
             updated_at
           FROM tasks
@@ -138,6 +144,7 @@ export class TaskRepository {
             priority,
             type,
             acceptance_criteria,
+            details_json,
             created_at,
             updated_at
           FROM tasks
@@ -191,7 +198,16 @@ function mapTask(row: TaskRow): Task {
     priority: row.priority,
     type: row.type,
     acceptanceCriteria: JSON.parse(row.acceptance_criteria) as string[],
+    details: parseTaskDetails(row.details_json),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+function parseTaskDetails(value: string | null): TaskDetails | null {
+  if (!value) {
+    return null;
+  }
+
+  return JSON.parse(value) as TaskDetails;
 }

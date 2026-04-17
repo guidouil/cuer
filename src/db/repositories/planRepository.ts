@@ -1,6 +1,6 @@
 import type BetterSqlite3 from "better-sqlite3";
 
-import type { Plan } from "../../domain/index.js";
+import type { Plan, PlanDetails } from "../../domain/index.js";
 
 interface PlanRow {
   id: string;
@@ -9,6 +9,7 @@ interface PlanRow {
   summary: string;
   status: Plan["status"];
   planner: string;
+  details_json: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -20,8 +21,8 @@ export class PlanRepository {
     this.db
       .prepare(
         `
-          INSERT INTO plans (id, project_id, goal, summary, status, planner, created_at, updated_at)
-          VALUES (@id, @projectId, @goal, @summary, @status, @planner, @createdAt, @updatedAt)
+          INSERT INTO plans (id, project_id, goal, summary, status, planner, details_json, created_at, updated_at)
+          VALUES (@id, @projectId, @goal, @summary, @status, @planner, @detailsJson, @createdAt, @updatedAt)
         `,
       )
       .run({
@@ -31,6 +32,7 @@ export class PlanRepository {
         summary: plan.summary,
         status: plan.status,
         planner: plan.planner,
+        detailsJson: plan.details ? JSON.stringify(plan.details) : null,
         createdAt: plan.createdAt,
         updatedAt: plan.updatedAt,
       });
@@ -42,7 +44,7 @@ export class PlanRepository {
     const row = this.db
       .prepare<[string], PlanRow>(
         `
-          SELECT id, project_id, goal, summary, status, planner, created_at, updated_at
+          SELECT id, project_id, goal, summary, status, planner, details_json, created_at, updated_at
           FROM plans
           WHERE project_id = ?
           ORDER BY created_at DESC
@@ -75,7 +77,16 @@ function mapPlan(row: PlanRow): Plan {
     summary: row.summary,
     status: row.status,
     planner: row.planner,
+    details: parsePlanDetails(row.details_json),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+function parsePlanDetails(value: string | null): PlanDetails | null {
+  if (!value) {
+    return null;
+  }
+
+  return JSON.parse(value) as PlanDetails;
 }

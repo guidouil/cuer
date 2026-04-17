@@ -8,6 +8,11 @@
   "bin": {
     "cuer": "dist/cli/index.js"
   },
+  "files": [
+    "dist/",
+    "README.md",
+    "planner.md"
+  ],
   "engines": {
     "node": ">=20"
   },
@@ -15,6 +20,8 @@
     "build": "npm run clean && tsc -p tsconfig.json",
     "clean": "rm -rf dist",
     "dev": "tsx src/cli/index.ts",
+    "install:local": "npm install --global --prefix \"${CUER_NPM_PREFIX:-$HOME/.local}\" .",
+    "prepare": "npm run build",
     "start": "node dist/cli/index.js",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },

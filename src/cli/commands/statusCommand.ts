@@ -28,11 +28,14 @@ export function runStatusCommand(rootPath: string, terminal: Terminal): void {
     terminal.info(`Plan: ${shortIdentifier(status.plan.id)} (${status.plan.status})`);
     terminal.info(`Goal: ${status.plan.goal}`);
     terminal.info(`Planner: ${status.plan.planner}`);
+    if (status.plan.details) {
+      terminal.info(`Planner project id: ${status.plan.details.sourceProjectId}`);
+    }
     terminal.info(
       `Tasks: ${status.tasks.length} total | ready ${status.queue.readyTaskIds.length} | blocked ${status.queue.blockedTaskIds.length} | running ${status.queue.runningTaskIds.length} | done ${status.queue.doneTaskIds.length} | failed ${status.queue.failedTaskIds.length}`,
     );
     terminal.info(
-      `Review: pending review tasks ${status.review.pendingReviewTasks} | blocked tasks ${status.review.blockedTasks}`,
+      `Validation: pending validation tasks ${status.review.pendingValidationTasks} | blocked tasks ${status.review.blockedTasks}`,
     );
 
     if (status.events.length > 0) {

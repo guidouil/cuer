@@ -2,71 +2,168 @@ import type { PlanDraft, PlannerInput, PlannerPort } from "../../domain/index.js
 
 export class SimplePlanner implements PlannerPort {
   createPlan(input: PlannerInput): PlanDraft {
-    const goal = normalizeGoal(input.goal);
+    const goal = normalizeText(input.goal);
+    const projectId = slugifyProjectId(input.projectName);
 
     return {
-      planner: "simple-v0",
-      summary: `Initial local execution plan for "${goal}".`,
+      planner: "simple-v1",
+      summary: `Local execution plan for "${goal}" with an explicit handoff path.`,
+      details: {
+        assumptions: [
+          "Execution stays local-first and terminal-first.",
+          "A minimal vertical slice is acceptable before broader automation.",
+        ],
+        projectSearch: {
+          keywords: ["local orchestration", "task planning", "cli workflow"],
+          domains: ["typescript", "sqlite", "terminal tooling"],
+          intent: "Find local-first planning and task orchestration patterns.",
+          stackCandidates: ["node.js", "typescript", "better-sqlite3"],
+          constraints: ["no mandatory server", "macOS and Linux only"],
+        },
+        qualityChecks: {
+          allAtomic: true,
+          allTestable: true,
+          dependenciesExplicit: true,
+          noVagueTasks: true,
+        },
+        sourceProjectId: projectId,
+        unknowns: [],
+      },
       tasks: [
         {
-          title: "Clarify scope and constraints",
-          description: `Restate the goal "${goal}" as an executable delivery slice and capture local constraints before any run step is prepared.`,
+          title: "Capture the execution slice",
+          description: buildDescription({
+            goal: `Restate "${goal}" as one concrete local delivery slice.`,
+            input: "The user objective and current repository state.",
+            action: "Write the smallest implementation target that can be shipped next.",
+            output: "One explicit delivery slice statement.",
+          }),
           priority: 1,
           type: "analysis",
           acceptanceCriteria: [
-            "The goal is rewritten as a concrete delivery slice.",
-            "Key local constraints and assumptions are explicit.",
+            'The delivery slice can be checked without adding new scope.',
           ],
+          details: {
+            plannerTaskId: "T1",
+            goal: `Restate "${goal}" as one concrete local delivery slice.`,
+            input: "The user objective and current repository state.",
+            action: "Write the smallest implementation target that can be shipped next.",
+            output: "One explicit delivery slice statement.",
+            taskSearch: {
+              keywords: ["scope definition", "delivery slice"],
+              domains: ["planning"],
+              intent: "Define a minimal execution target.",
+            },
+            validation: 'The delivery slice can be checked without adding new scope.',
+          },
         },
         {
-          title: "Model the first execution slice",
-          description: `Define the first atomic work units needed to move "${goal}" forward without introducing runner-specific coupling.`,
+          title: "Model the plan data contract",
+          description: buildDescription({
+            goal: "Define the structured plan fields that downstream execution must preserve.",
+            input: "The delivery slice statement from T1.",
+            action: "Map the planning fields to explicit local domain structures.",
+            output: "One plan data contract.",
+          }),
           priority: 2,
           type: "analysis",
           acceptanceCriteria: [
-            "The first execution slice is broken into atomic tasks.",
-            "Dependencies between tasks are explicit.",
+            "Every runtime field needed by execution and inspection is represented explicitly.",
           ],
+          details: {
+            plannerTaskId: "T2",
+            goal: "Define the structured plan fields that downstream execution must preserve.",
+            input: "The delivery slice statement from T1.",
+            action: "Map the planning fields to explicit local domain structures.",
+            output: "One plan data contract.",
+            taskSearch: {
+              keywords: ["domain model", "task metadata", "plan schema"],
+              domains: ["typescript"],
+              intent: "Represent planner output in explicit local types.",
+            },
+            validation: "Every runtime field needed by execution and inspection is represented explicitly.",
+          },
         },
         {
-          title: "Implement the first usable change set",
-          description: `Prepare the code-facing work required to make measurable progress toward "${goal}". Keep the implementation slice isolated and inspectable.`,
-          priority: 1,
-          type: "code",
+          title: "Implement the first runnable change",
+          description: buildDescription({
+            goal: `Create the first code change required to move "${goal}" forward.`,
+            input: "The structured plan contract from T2.",
+            action: "Implement one isolated runtime change.",
+            output: "One inspectable code change set.",
+          }),
+          priority: 3,
+          type: "implementation",
           acceptanceCriteria: [
-            "A concrete implementation slice is identified.",
-            "The slice can later be handed to an external code runner.",
+            "The change can be executed or inspected without hidden dependencies.",
           ],
+          details: {
+            plannerTaskId: "T3",
+            goal: `Create the first code change required to move "${goal}" forward.`,
+            input: "The structured plan contract from T2.",
+            action: "Implement one isolated runtime change.",
+            output: "One inspectable code change set.",
+            taskSearch: {
+              keywords: ["implementation slice", "isolated change"],
+              domains: ["typescript"],
+              intent: "Apply one bounded runtime change.",
+            },
+            validation: "The change can be executed or inspected without hidden dependencies.",
+          },
         },
         {
-          title: "Verify the change locally",
-          description: `Define the local checks needed to validate the first change set for "${goal}" before review or resume flows are added.`,
-          priority: 2,
+          title: "Verify the local behavior",
+          description: buildDescription({
+            goal: "Confirm that the new change behaves as intended locally.",
+            input: "The change set from T3.",
+            action: "Run one focused local verification step.",
+            output: "One verification result.",
+          }),
+          priority: 4,
           type: "test",
           acceptanceCriteria: [
-            "Local verification steps are defined.",
-            "The expected outcome of each check is explicit.",
+            "The verification result clearly passes or fails one specific behavior.",
           ],
+          details: {
+            plannerTaskId: "T4",
+            goal: "Confirm that the new change behaves as intended locally.",
+            input: "The change set from T3.",
+            action: "Run one focused local verification step.",
+            output: "One verification result.",
+            taskSearch: {
+              keywords: ["local validation", "focused test"],
+              domains: ["testing"],
+              intent: "Verify one behavior introduced by the change.",
+            },
+            validation: "The verification result clearly passes or fails one specific behavior.",
+          },
         },
         {
-          title: "Review gaps and blockers",
-          description: `Inspect the first plan slice for unresolved blockers, missing context, or follow-up work needed to deliver "${goal}" cleanly.`,
-          priority: 2,
-          type: "review",
+          title: "Record the next handoff state",
+          description: buildDescription({
+            goal: "Leave the local plan state readable for the next operator or agent.",
+            input: "The verified outcome from T4.",
+            action: "Write one concise local state update.",
+            output: "One documented next action.",
+          }),
+          priority: 5,
+          type: "documentation",
           acceptanceCriteria: [
-            "Open blockers are listed.",
-            "Follow-up work is identified without expanding scope prematurely.",
+            "A future operator can identify the next action without re-reading the full session.",
           ],
-        },
-        {
-          title: "Document state and next actions",
-          description: `Record the current plan state for "${goal}" so future run, review, and resume commands can build on explicit local state.`,
-          priority: 3,
-          type: "docs",
-          acceptanceCriteria: [
-            "The current state is documented locally.",
-            "The next action is unambiguous for a future agent or operator.",
-          ],
+          details: {
+            plannerTaskId: "T5",
+            goal: "Leave the local plan state readable for the next operator or agent.",
+            input: "The verified outcome from T4.",
+            action: "Write one concise local state update.",
+            output: "One documented next action.",
+            taskSearch: {
+              keywords: ["handoff", "local state", "next action"],
+              domains: ["documentation"],
+              intent: "Document the next actionable state.",
+            },
+            validation: "A future operator can identify the next action without re-reading the full session.",
+          },
         },
       ],
       dependencies: [
@@ -74,12 +171,34 @@ export class SimplePlanner implements PlannerPort {
         { taskIndex: 2, dependsOnTaskIndex: 1 },
         { taskIndex: 3, dependsOnTaskIndex: 2 },
         { taskIndex: 4, dependsOnTaskIndex: 3 },
-        { taskIndex: 5, dependsOnTaskIndex: 4 },
       ],
     };
   }
 }
 
-function normalizeGoal(goal: string): string {
-  return goal.trim().replace(/\s+/g, " ");
+function buildDescription(input: {
+  goal: string;
+  input: string;
+  action: string;
+  output: string;
+}): string {
+  return [
+    `Goal: ${input.goal}`,
+    `Input: ${input.input}`,
+    `Action: ${input.action}`,
+    `Output: ${input.output}`,
+  ].join("\n");
+}
+
+function normalizeText(value: string): string {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function slugifyProjectId(value: string): string {
+  const slug = normalizeText(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+
+  return slug || "project";
 }

@@ -74,4 +74,11 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_events_plan_id ON events(plan_id);
     `,
   },
+  {
+    id: "002_planner_details",
+    sql: `
+      ALTER TABLE plans ADD COLUMN details_json TEXT;
+      ALTER TABLE tasks ADD COLUMN details_json TEXT;
+    `,
+  },
 ];

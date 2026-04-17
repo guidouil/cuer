@@ -1,5 +1,17 @@
+import type { TaskDetails } from "./planning.js";
+
 export const TASK_STATUSES = ["draft", "ready", "blocked", "running", "done", "failed"] as const;
-export const TASK_TYPES = ["analysis", "code", "test", "docs", "review"] as const;
+export const TASK_TYPES = [
+  "clarification",
+  "analysis",
+  "implementation",
+  "test",
+  "documentation",
+  "deployment",
+  "code",
+  "docs",
+  "review",
+] as const;
 
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 export type TaskType = (typeof TASK_TYPES)[number];
@@ -14,6 +26,7 @@ export interface Task {
   priority: number;
   type: TaskType;
   acceptanceCriteria: string[];
+  details: TaskDetails | null;
   createdAt: string;
   updatedAt: string;
 }

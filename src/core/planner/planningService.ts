@@ -1,4 +1,4 @@
-import type { Plan, PlannerPort, Project, Task, TaskDependency } from "../../domain/index.js";
+import type { Plan, PlanDraft, PlannerPort, Project, Task, TaskDependency } from "../../domain/index.js";
 import { writePlanSnapshot } from "../../filesystem/workspace.js";
 import { createId } from "../../utils/id.js";
 import { nowIso } from "../../utils/time.js";
@@ -12,14 +12,22 @@ export interface PlanningResult {
 }
 
 export class PlanningService {
-  constructor(private readonly planner: PlannerPort) {}
+  constructor(private readonly planner?: PlannerPort) {}
 
   createInitialPlan(context: WorkspaceContext, project: Project, goal: string): PlanningResult {
+    if (!this.planner) {
+      throw new Error("Planning service is not configured with a planner.");
+    }
+
     const draft = this.planner.createPlan({
       projectName: project.name,
       goal,
     });
 
+    return this.createPlanFromDraft(context, project, goal, draft);
+  }
+
+  createPlanFromDraft(context: WorkspaceContext, project: Project, goal: string, draft: PlanDraft): PlanningResult {
     const timestamp = nowIso();
     const plan: Plan = {
       id: createId("plan"),
@@ -28,6 +36,7 @@ export class PlanningService {
       summary: draft.summary,
       status: "ready",
       planner: draft.planner,
+      details: draft.details,
       createdAt: timestamp,
       updatedAt: timestamp,
     };
@@ -45,6 +54,7 @@ export class PlanningService {
       priority: draftTask.priority,
       type: draftTask.type,
       acceptanceCriteria: draftTask.acceptanceCriteria,
+      details: draftTask.details,
       createdAt: timestamp,
       updatedAt: timestamp,
     }));
@@ -59,6 +69,7 @@ export class PlanningService {
     const payload = {
       goal,
       planner: draft.planner,
+      plannerProjectId: draft.details.sourceProjectId,
       taskCount: tasks.length,
     };
 

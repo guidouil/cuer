@@ -5,7 +5,7 @@ import { computeQueueSnapshot } from "../queue/taskQueue.js";
 export interface ReviewSnapshot {
   blockedTasks: number;
   completedTasks: number;
-  pendingReviewTasks: number;
+  pendingValidationTasks: number;
   totalTasks: number;
 }
 
@@ -16,7 +16,9 @@ export class ReviewService {
     return {
       blockedTasks: queue.blockedTaskIds.length,
       completedTasks: tasks.filter((task) => task.status === "done").length,
-      pendingReviewTasks: tasks.filter((task) => task.type === "review" && task.status !== "done").length,
+      pendingValidationTasks: tasks.filter(
+        (task) => (task.type === "test" || task.type === "review") && task.status !== "done",
+      ).length,
       totalTasks: tasks.length,
     };
   }

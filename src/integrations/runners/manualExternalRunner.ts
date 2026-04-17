@@ -14,10 +14,14 @@ export class ManualExternalRunner implements ExternalRunnerPort {
 }
 
 function buildPrompt(input: RunnerDispatchInput, context: RunnerDispatchContext): string {
+  const details = input.task.details;
   const acceptanceCriteria =
     input.task.acceptanceCriteria.length === 0
       ? "- None recorded"
       : input.task.acceptanceCriteria.map((criterion) => `- ${criterion}`).join("\n");
+  const taskDetails = details
+    ? `## Structured task\n\nGoal: ${details.goal}\nInput: ${details.input}\nAction: ${details.action}\nOutput: ${details.output}\nValidation: ${details.validation}\n`
+    : "";
 
   return `# Cuer Task Handoff
 
@@ -38,6 +42,7 @@ ${input.task.title}
 
 ${input.task.description}
 
+${taskDetails}
 ## Acceptance criteria
 
 ${acceptanceCriteria}

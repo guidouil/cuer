@@ -39,8 +39,25 @@ function renderSnapshot(snapshot: TaskInspectionSnapshot, terminal: Terminal): v
   terminal.info(`Status: ${task.status}`);
   terminal.info(`Type: ${task.type}`);
   terminal.info(`Priority: ${task.priority}`);
+  if (task.details) {
+    terminal.info(`Planner task id: ${task.details.plannerTaskId}`);
+  }
   terminal.info(`Created at: ${task.createdAt}`);
   terminal.info(`Updated at: ${task.updatedAt}`);
+
+  if (task.details) {
+    terminal.info("");
+    terminal.info("Structured task:");
+    terminal.info(`  Goal: ${task.details.goal}`);
+    terminal.info(`  Input: ${task.details.input}`);
+    terminal.info(`  Action: ${task.details.action}`);
+    terminal.info(`  Output: ${task.details.output}`);
+    terminal.info(`  Validation: ${task.details.validation}`);
+    terminal.info(
+      `  Search: ${task.details.taskSearch.intent} | keywords ${formatList(task.details.taskSearch.keywords)} | domains ${formatList(task.details.taskSearch.domains)}`,
+    );
+  }
+
   terminal.info("");
   terminal.info("Description:");
   terminal.info(indent(task.description));
@@ -172,4 +189,8 @@ function isJsonObject(value: JsonValue): value is JsonObject {
 function readString(value: JsonObject, key: string): string | null {
   const candidate = value[key];
   return typeof candidate === "string" ? candidate : null;
+}
+
+function formatList(values: string[]): string {
+  return values.length === 0 ? "-" : values.join(", ");
 }

@@ -86,6 +86,7 @@ function printHelp(): void {
   terminal.info("Usage:");
   terminal.info("  cuer init");
   terminal.info('  cuer plan "your objective"');
+  terminal.info('  cuer plan --planner-response <file|-> --planner <name> --goal "your objective"');
   terminal.info("  cuer tasks");
   terminal.info("  cuer run [--task <task-id>]");
   terminal.info("  cuer task-history [--task <task-id>] [--limit <n>]");

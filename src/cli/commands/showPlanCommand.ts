@@ -44,6 +44,12 @@ function renderPlanSnapshot(snapshot: PlanInspectionSnapshot, terminal: Terminal
   terminal.info(`Status: ${snapshot.plan.status}`);
   terminal.info(`Goal: ${snapshot.plan.goal}`);
   terminal.info(`Planner: ${snapshot.plan.planner}`);
+  if (snapshot.plan.details) {
+    terminal.info(`Planner project id: ${snapshot.plan.details.sourceProjectId}`);
+    terminal.info(`Planner intent: ${snapshot.plan.details.projectSearch.intent}`);
+    terminal.info(`Assumptions: ${formatSummaryList(snapshot.plan.details.assumptions)}`);
+    terminal.info(`Unknowns: ${formatSummaryList(snapshot.plan.details.unknowns)}`);
+  }
   terminal.info(
     `Queue: ready ${snapshot.queue.readyTaskIds.length} | blocked ${snapshot.queue.blockedTaskIds.length} | running ${snapshot.queue.runningTaskIds.length} | done ${snapshot.queue.doneTaskIds.length} | failed ${snapshot.queue.failedTaskIds.length}`,
   );
@@ -74,4 +80,8 @@ function renderPlanSnapshot(snapshot: PlanInspectionSnapshot, terminal: Terminal
     );
     terminal.info(`    Summary: ${artifact.summary}`);
   }
+}
+
+function formatSummaryList(values: string[]): string {
+  return values.length === 0 ? "none" : values.join("; ");
 }
