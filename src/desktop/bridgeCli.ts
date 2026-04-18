@@ -4,6 +4,8 @@ import { cwd } from "node:process";
 
 import { WorkspaceAppService } from "../core/app/workspaceAppService.js";
 
+import type { AuthMethodType, ProviderType } from "../domain/index.js";
+
 const workspaceAppService = new WorkspaceAppService();
 
 void main();
@@ -16,6 +18,38 @@ async function main(): Promise<void> {
       case "workspace-overview":
         writeJson(workspaceAppService.getWorkspaceOverview(rootPath));
         return;
+      case "create-provider-account": {
+        const payloadJson = args[0]?.trim();
+        if (!payloadJson) {
+          throw new Error("A JSON payload is required for create-provider-account.");
+        }
+
+        const payload = JSON.parse(payloadJson) as Partial<{
+          authMethodType: string;
+          baseUrl: string | null;
+          defaultModel: string | null;
+          name: string;
+          providerType: string;
+          secretValue: string | null;
+        }>;
+
+        if (!payload.authMethodType || !payload.name || !payload.providerType) {
+          throw new Error("Provider account payload is incomplete.");
+        }
+
+        writeJson(
+          workspaceAppService.createProviderAccount({
+            authMethodType: payload.authMethodType as AuthMethodType,
+            name: payload.name,
+            providerType: payload.providerType as ProviderType,
+            rootPath,
+            ...(payload.baseUrl ? { baseUrl: payload.baseUrl } : {}),
+            ...(payload.defaultModel ? { defaultModel: payload.defaultModel } : {}),
+            ...(payload.secretValue ? { secretValue: payload.secretValue } : {}),
+          }),
+        );
+        return;
+      }
       case "run-planner": {
         const goal = args.join(" ").trim();
         if (goal.length === 0) {

@@ -2,6 +2,8 @@
 
 import { cwd, exitCode, platform } from "node:process";
 
+import { runAccountsCommand } from "./commands/accountsCommand.js";
+import { runAddAccountCommand } from "./commands/addAccountCommand.js";
 import { runInitCommand } from "./commands/initCommand.js";
 import { runPlanCommand } from "./commands/planCommand.js";
 import { runRunCommand } from "./commands/runCommand.js";
@@ -28,6 +30,12 @@ async function main(): Promise<void> {
     switch (command) {
       case "init":
         runInitCommand(rootPath, terminal);
+        return;
+      case "accounts":
+        runAccountsCommand(rootPath, terminal);
+        return;
+      case "add-account":
+        await runAddAccountCommand(rootPath, args, terminal);
         return;
       case "plan":
         await runPlanCommand(rootPath, args, terminal);
@@ -85,6 +93,8 @@ function printHelp(): void {
   terminal.info("");
   terminal.info("Usage:");
   terminal.info("  cuer init");
+  terminal.info("  cuer accounts");
+  terminal.info("  cuer add-account --provider <type> --name <label> [--auth <method>] [--base-url <url>] [--secret-env <ENV>]");
   terminal.info('  cuer plan "your objective"');
   terminal.info('  cuer plan --planner-response <file|-> --planner <name> --goal "your objective"');
   terminal.info("  cuer tasks");

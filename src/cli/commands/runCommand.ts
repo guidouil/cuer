@@ -24,6 +24,7 @@ export async function runRunCommand(rootPath: string, args: string[], terminal: 
     });
     const status = getProjectStatus(context, project);
 
+    terminal.info(`Account: ${result.gateway.accountName} (${result.gateway.providerLabel})`);
     terminal.info(`Runner: ${result.dispatch.runnerName}`);
     terminal.info(`Task: ${result.task.title}`);
     terminal.info(`Task status: ${result.task.status}`);

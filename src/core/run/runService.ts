@@ -4,6 +4,7 @@ import { createId } from "../../utils/id.js";
 import { nowIso } from "../../utils/time.js";
 
 import type { WorkspaceContext } from "../context/workspaceContext.js";
+import { AccountManagerService, type ResolvedAccountAccess } from "../accounts/accountManagerService.js";
 import { TaskLifecycleService } from "../queue/taskLifecycleService.js";
 import { synchronizeTaskAvailability } from "../queue/taskTransitionEngine.js";
 
@@ -15,6 +16,14 @@ export interface RunTaskOptions {
 
 export interface RunTaskResult {
   dispatch: RunnerDispatchResult;
+  gateway: {
+    accountId: string;
+    accountName: string;
+    authMethodType: string | null;
+    defaultModel: string | null;
+    providerLabel: string;
+    providerType: string;
+  };
   plan: Plan;
   promptPath: string | null;
   synchronizedTasks: Task[];
@@ -22,6 +31,7 @@ export interface RunTaskResult {
 }
 
 export class RunService {
+  private readonly accountManager = new AccountManagerService();
   private readonly taskLifecycle = new TaskLifecycleService();
 
   constructor(private readonly runner: ExternalRunnerPort) {}
@@ -31,6 +41,7 @@ export class RunService {
     project: Project,
     options: RunTaskOptions = {},
   ): Promise<RunTaskResult> {
+    const gateway = this.accountManager.requireCapability(context, "execution");
     const plan = context.repositories.plans.findLatestByProjectId(project.id);
     if (!plan) {
       throw new Error('No plan found. Run "cuer plan" first.');
@@ -103,9 +114,14 @@ export class RunService {
       taskId: finalTask.id,
       type: "task.run.dispatched",
       payload: {
+        accountId: gateway.account.id,
+        accountName: gateway.account.name,
+        authMethodType: gateway.authMethod?.type ?? null,
+        defaultModel: gateway.account.defaultModel,
         externalRunId: dispatch.externalRunId ?? null,
         planStatus,
         promptPath,
+        providerType: gateway.provider.type,
         runner: dispatch.runnerName,
         state: dispatch.state,
       },
@@ -114,6 +130,7 @@ export class RunService {
 
     return {
       dispatch,
+      gateway: mapGateway(gateway),
       plan: {
         ...plan,
         status: planStatus,
@@ -123,6 +140,17 @@ export class RunService {
       task: finalTask,
     };
   }
+}
+
+function mapGateway(gateway: ResolvedAccountAccess): RunTaskResult["gateway"] {
+  return {
+    accountId: gateway.account.id,
+    accountName: gateway.account.name,
+    authMethodType: gateway.authMethod?.type ?? null,
+    defaultModel: gateway.account.defaultModel,
+    providerLabel: gateway.provider.label,
+    providerType: gateway.provider.type,
+  };
 }
 
 function selectTaskToRun(tasks: Task[], dependencies: TaskDependency[], taskId?: string): Task {

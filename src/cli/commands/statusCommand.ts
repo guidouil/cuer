@@ -1,3 +1,4 @@
+import { AccountManagerService } from "../../core/accounts/accountManagerService.js";
 import { getProjectStatus } from "../../core/context/projectStatus.js";
 import { WorkspaceContext } from "../../core/context/workspaceContext.js";
 import { renderEventLines, shortIdentifier } from "../format.js";
@@ -6,11 +7,24 @@ import type { Terminal } from "../terminal.js";
 
 export function runStatusCommand(rootPath: string, terminal: Terminal): void {
   const context = WorkspaceContext.open(rootPath);
+  const accountManager = new AccountManagerService();
 
   try {
+    const accountSnapshot = accountManager.getSnapshot(context);
+
+    terminal.info(`Workspace: ${context.paths.workspaceDir}`);
+    terminal.info(`Accounts: ${accountSnapshot.accounts.length}`);
+    if (accountSnapshot.projectWorkGateway.isReady) {
+      terminal.info(
+        `Project gateway: ${accountSnapshot.projectWorkGateway.accountName} (${accountSnapshot.projectWorkGateway.providerLabel})`,
+      );
+    } else if (accountSnapshot.projectWorkGateway.reason) {
+      terminal.info(`Project gateway: ${accountSnapshot.projectWorkGateway.reason}`);
+    }
+
     const project = context.repositories.projects.findByRootPath(rootPath);
     if (!project) {
-      terminal.info('No project registered yet. Run "cuer init" or "cuer plan" first.');
+      terminal.info('Project: none yet. Add an account and run "cuer plan" to create the first project flow.');
       return;
     }
 
@@ -18,7 +32,6 @@ export function runStatusCommand(rootPath: string, terminal: Terminal): void {
 
     terminal.info(`Project: ${project.name}`);
     terminal.info(`Root: ${project.rootPath}`);
-    terminal.info(`Workspace: ${context.paths.workspaceDir}`);
 
     if (!status.plan) {
       terminal.info("Plan: none");

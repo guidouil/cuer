@@ -14,10 +14,19 @@ fn run_planner(goal: String) -> Result<Value, String> {
     run_bridge("run-planner", vec![goal])
 }
 
+#[tauri::command]
+fn create_provider_account(payload: Value) -> Result<Value, String> {
+    run_bridge("create-provider-account", vec![payload.to_string()])
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![get_workspace_overview, run_planner])
+        .invoke_handler(tauri::generate_handler![
+            get_workspace_overview,
+            run_planner,
+            create_provider_account
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

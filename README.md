@@ -2,9 +2,9 @@
 
 Cuer is a local-first orchestrator for agentic development.
 
-It is not a chatbot, not a thin planner, and not an IDE. The first delivery focuses on a terminal workflow that can turn a development objective into a local plan, persist that state in SQLite, and prepare the architecture for `run`, `review`, and `resume` commands.
+It is not a chatbot, not a thin planner, and not an IDE. The current foundation is an account-first workflow: provider accounts, auth methods, secrets, access policies, and usage accounting live in the shared core before project planning or task execution begin.
 
-The repository now also includes a first Tauri desktop shell that reuses the same Node.js/TypeScript planner orchestration instead of rebuilding it in the frontend.
+The repository now also includes a Tauri desktop shell that reuses the same Node.js/TypeScript core services instead of rebuilding business logic in the frontend.
 
 ## Current scope
 
@@ -13,7 +13,10 @@ V0 provides:
 - a Node.js + TypeScript CLI
 - local workspace bootstrap in `.cuer/`
 - a local SQLite database powered by `better-sqlite3`
+- a shared Account Manager domain for providers, auth methods, credentials, access policies, usage events, and cost records
+- a dedicated local secret storage abstraction under `.cuer/secrets/`
 - explicit domain entities for projects, plans, tasks, task dependencies, and events
+- account-gated planner and run flows that resolve provider access through the shared core
 - a simple isolated planner that generates an honest initial task graph
 - ingestion of strict external planner JSON responses compatible with `planner.md`
 - a task lifecycle engine that validates state transitions and keeps queue readiness synchronized
@@ -60,6 +63,8 @@ cuer help
 
 ```bash
 cuer init
+cuer accounts
+cuer add-account --provider openai --name "Primary OpenAI" --auth api_key --secret-env OPENAI_API_KEY
 cuer plan "Ship a first local workflow for task orchestration"
 cuer plan --planner-response planner-result.json --planner anthropic:claude --goal "Ship a first local workflow for task orchestration"
 cuer tasks
@@ -76,6 +81,8 @@ Equivalent dev usage:
 
 ```bash
 npm run dev -- init
+npm run dev -- accounts
+npm run dev -- add-account --provider openai --name "Primary OpenAI" --auth api_key --secret-env OPENAI_API_KEY
 npm run dev -- plan "Ship a first local workflow for task orchestration"
 npm run dev -- plan --planner-response planner-result.json --planner anthropic:claude --goal "Ship a first local workflow for task orchestration"
 npm run dev -- tasks
@@ -87,6 +94,17 @@ npm run dev -- show-task --task <task-id>
 npm run dev -- update-task --status done --summary "Scope clarified and constraints captured"
 npm run dev -- status
 ```
+
+## Account-first flow
+
+The intended order is now:
+
+1. `cuer init`
+2. `cuer add-account ...`
+3. `cuer plan ...`
+4. `cuer run`
+
+The desktop app follows the same rule and opens on the Account Manager screen first.
 
 ## Desktop app
 
@@ -106,8 +124,11 @@ On the first run, Tauri may take longer while Cargo compiles the desktop depende
 
 The desktop app currently provides:
 
-- a home screen with the workspace path, current config summary, and local project list
-- a planner screen with a real prompt form
+- an Account Manager screen as the first visible workflow
+- listing of configured provider accounts with auth mode, base URL, access status, and redacted secret hints
+- a form to register provider accounts, auth type, base URL, API key or placeholder auth data, and an optional default model
+- a usage and cost panel backed by local persistence placeholders
+- a planner screen gated by the Account Manager
 - planner results rendered as questions or a task list
 - a raw backend response panel for debugging
 
@@ -119,13 +140,18 @@ Reused:
 - `src/core/context/workspaceContext.ts` for local workspace/bootstrap behavior
 - `src/db/*` and `src/filesystem/*` for persistence and local state
 - the CLI `plan` behavior, now routed through the same shared service as desktop
+- the existing manual runner and planner core, now gated through account resolution first
 
 Added:
 
+- `src/core/accounts/*` for provider catalog, account registration, access resolution, and usage summaries
 - `src/core/app/workspaceAppService.ts` as the shared application service for CLI and desktop
 - `src/desktop/bridgeCli.ts` as a thin Node bridge that exposes JSON to the Tauri shell
+- `src/filesystem/secretStore.ts` as the current secret storage implementation behind the secret-store abstraction
 - `src-tauri/` as the native desktop entrypoint
 - `desktop/` as the minimal frontend UI
+
+See [docs/account-manager-milestone.md](/Users/gui/Projects/cuer/docs/account-manager-milestone.md) for the milestone note.
 
 ## Workspace layout
 
@@ -135,6 +161,7 @@ After `cuer init`, the current directory receives:
 .cuer/
   cuer.db
   config.json
+  secrets/
   plans/
   artifacts/
   logs/
@@ -144,6 +171,7 @@ After `cuer init`, the current directory receives:
 
 - `cuer.db`: local state store
 - `config.json`: workspace-local configuration
+- `secrets/`: dedicated secret payload storage behind the secret-store abstraction
 - `plans/`: inspectable plan snapshots written as JSON
 - `artifacts/`: execution artifacts and future run outputs
 - `logs/`, `prompts/`, `skills/`: reserved for later execution flows
@@ -155,6 +183,7 @@ src/
   cli/
     commands/
   core/
+    accounts/
     app/
     planner/
     graph/
@@ -182,12 +211,26 @@ src-tauri/
 - creates `config.json`
 - creates `cuer.db`
 - applies the initial SQLite schema
-- registers the local project in the database
+- prepares the Account Manager foundation without creating a project yet
+
+### `cuer accounts`
+
+- lists configured provider accounts
+- shows the currently resolved project gateway when available
+- reports redacted credential status only
+
+### `cuer add-account`
+
+- registers one provider account in the shared Account Manager domain
+- validates provider type, auth method, and base URL requirements
+- writes secret material through the dedicated secret-store abstraction
+- persists access policy, credential metadata, and future usage/cost scaffolding
 
 ### `cuer plan`
 
 - accepts a goal as arguments or prompts for it
 - initializes the workspace if missing
+- requires the Account Manager to resolve a planning gateway first
 - creates the project record if needed
 - generates a simple initial plan with atomic tasks by default
 - accepts `--planner-response <file>` or `--planner-response -` to ingest a strict external JSON response
@@ -205,6 +248,7 @@ src-tauri/
 ### `cuer run`
 
 - selects the first ready task, or a specific one via `--task`
+- requires the Account Manager to resolve an execution gateway first
 - validates the task transition through the lifecycle engine
 - dispatches the task to the configured runner port
 - writes a manual handoff prompt under `.cuer/prompts/`
@@ -213,7 +257,8 @@ src-tauri/
 
 ### `cuer status`
 
-- shows the current project summary
+- shows account and gateway status first
+- shows the current project summary when one exists
 - reports the latest plan, queue counts, and recent events
 
 ### `cuer task-history`
@@ -256,6 +301,12 @@ src-tauri/
 
 V0 persists the following entities:
 
+- `Account`
+- `AuthMethod`
+- `Credential`
+- `UsageEvent`
+- `CostRecord`
+- `AccessPolicy`
 - `Project`
 - `Plan`
 - `Task`
@@ -308,6 +359,8 @@ If the response mode is `ask_user`, Cuer prints the blocking questions and recor
 
 ## Limits of V0
 
+- the current secret store is a dedicated local abstraction, not OS keychain integration yet
+- provider-backed usage and cost writes are scaffolded, but the current local planner and manual runner do not emit full real provider accounting yet
 - the planner is heuristic and deliberately simple
 - the current runner is a manual external handoff, not a live agent execution backend
 - no `review` or `resume` command yet
@@ -316,6 +369,9 @@ If the response mode is `ask_user`, Cuer prints the blocking questions and recor
 
 ## Next steps
 
+- add keychain-backed secret storage implementations behind the existing abstraction
+- record real provider usage and cost events from provider-backed planner and execution adapters
+- add explicit account selection and richer policy controls on top of the current default gateway
 - add richer runner adapters for external coding agents
 - add execution queue operations beyond single-task dispatch
 - add richer review and resume flows

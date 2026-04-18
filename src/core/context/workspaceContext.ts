@@ -1,7 +1,9 @@
+import type { SecretStore } from "../accounts/secretStore.js";
 import type { Project } from "../../domain/index.js";
 import { CuerDatabase } from "../../db/database.js";
 import { createRepositories, type RepositorySet } from "../../db/repositories/index.js";
 import { createWorkspaceConfig, normalizeWorkspaceConfig } from "../../filesystem/config.js";
+import { FilesystemSecretStore } from "../../filesystem/secretStore.js";
 import {
   ensureWorkspaceDirectories,
   inferProjectName,
@@ -32,6 +34,7 @@ export class WorkspaceContext {
     readonly paths: WorkspacePaths,
     readonly config: WorkspaceConfig,
     readonly database: CuerDatabase,
+    readonly secretStore: SecretStore,
   ) {
     this.repositories = createRepositories(database.connection);
   }
@@ -66,7 +69,8 @@ export class WorkspaceContext {
     }
 
     const database = new CuerDatabase(paths.dbPath);
-    return new WorkspaceContext(paths, config, database);
+    const secretStore = new FilesystemSecretStore(paths.secretsDir);
+    return new WorkspaceContext(paths, config, database, secretStore);
   }
 
   close(): void {
