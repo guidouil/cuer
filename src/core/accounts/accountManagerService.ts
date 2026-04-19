@@ -122,6 +122,7 @@ export class AccountManagerService {
       throw new Error("An API key is required for the selected auth method.");
     }
 
+    const credentialStatus = secretValue || !authMethodRequiresSecret(authMethodType) ? "configured" : "pending";
     const timestamp = nowIso();
     const accountId = createId("account");
     const authMethodId = createId("auth");
@@ -154,7 +155,7 @@ export class AccountManagerService {
       authMethodId,
       secretRef,
       secretHint: secretValue ? redactSecret(secretValue) : null,
-      status: secretValue ? "configured" : "pending",
+      status: credentialStatus,
       metadata: null,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -289,6 +290,10 @@ export class AccountManagerService {
           return false;
         }
 
+        if (!isCredentialReady(record)) {
+          return false;
+        }
+
         const activePolicies = record.accessPolicies.filter((policy) => policy.active);
         const relevantPolicies = activePolicies.filter((policy) => policy.capabilities.includes(capability));
 
@@ -308,11 +313,19 @@ export class AccountManagerService {
   private requireProvider(providerType: ProviderType): Provider {
     const provider = PROVIDER_CATALOG.find((candidate) => candidate.type === providerType);
     if (!provider) {
-      throw new Error(`Unknown provider type "${providerType}".`);
+  throw new Error(`Unknown provider type "${providerType}".`);
     }
 
     return provider;
   }
+}
+
+function isCredentialReady(record: AccountRecord): boolean {
+  if (!record.authMethod || !record.credential) {
+    return false;
+  }
+
+  return record.credential.status === "configured";
 }
 
 function summarizeUsage(totalEvents: number, recentUsage: RecentUsageSummary[], costRecords: CostRecord[]): UsageSummary {
@@ -347,6 +360,19 @@ function buildAuthMethodLabel(authMethodType: AuthMethodType): string {
       return "Local Endpoint";
     case "custom":
       return "Custom";
+  }
+}
+
+function authMethodRequiresSecret(authMethodType: AuthMethodType): boolean {
+  switch (authMethodType) {
+    case "api_key":
+      return true;
+    case "oauth":
+      return true;
+    case "local_endpoint":
+      return false;
+    case "custom":
+      return true;
   }
 }
 

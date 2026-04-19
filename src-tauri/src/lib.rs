@@ -1,22 +1,22 @@
-use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use serde_json::Value;
+use tauri::path::BaseDirectory;
 
 #[tauri::command]
-fn get_workspace_overview() -> Result<Value, String> {
-    run_bridge("workspace-overview", Vec::new())
+fn get_workspace_overview(app: tauri::AppHandle) -> Result<Value, String> {
+    run_bridge(&app, "workspace-overview", Vec::new())
 }
 
 #[tauri::command]
-fn run_planner(goal: String) -> Result<Value, String> {
-    run_bridge("run-planner", vec![goal])
+fn run_planner(app: tauri::AppHandle, goal: String) -> Result<Value, String> {
+    run_bridge(&app, "run-planner", vec![goal])
 }
 
 #[tauri::command]
-fn create_provider_account(payload: Value) -> Result<Value, String> {
-    run_bridge("create-provider-account", vec![payload.to_string()])
+fn create_provider_account(app: tauri::AppHandle, payload: Value) -> Result<Value, String> {
+    run_bridge(&app, "create-provider-account", vec![payload.to_string()])
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -31,25 +31,23 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
-fn run_bridge(command_name: &str, extra_args: Vec<String>) -> Result<Value, String> {
+fn run_bridge(app: &tauri::AppHandle, command_name: &str, extra_args: Vec<String>) -> Result<Value, String> {
     let root_path = workspace_root()?;
-    let script_path = root_path.join("dist/desktop/bridgeCli.js");
-    if !script_path.exists() {
+    let bridge_path = resolve_bridge_path(app, &root_path)?;
+    if !bridge_path.exists() {
         return Err(format!(
-            "Desktop bridge not found at {}. Run `npm run build` and try again.",
-            script_path.display()
+            "Desktop bridge not found at {}. Run `npm run desktop:bridge` and try again.",
+            bridge_path.display()
         ));
     }
 
-    let node_binary = env::var("npm_node_execpath").unwrap_or_else(|_| String::from("node"));
-    let output = Command::new(node_binary)
+    let output = Command::new(&bridge_path)
         .current_dir(&root_path)
-        .arg(&script_path)
         .arg(command_name)
         .arg(root_path.to_string_lossy().to_string())
         .args(extra_args)
         .output()
-        .map_err(|error| format!("Failed to start desktop bridge: {error}"))?;
+        .map_err(|error| format!("Failed to start desktop bridge at {}: {error}", bridge_path.display()))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
@@ -78,4 +76,17 @@ fn workspace_root() -> Result<PathBuf, String> {
     parent
         .canonicalize()
         .map_err(|error| format!("Failed to resolve workspace root: {error}"))
+}
+
+fn resolve_bridge_path(app: &tauri::AppHandle, workspace_root: &Path) -> Result<PathBuf, String> {
+    let packaged_bridge = app
+        .path()
+        .resolve("backend/cuer-bridge", BaseDirectory::Resource)
+        .map_err(|error| format!("Failed to resolve packaged desktop bridge: {error}"))?;
+
+    if packaged_bridge.exists() {
+        return Ok(packaged_bridge);
+    }
+
+    Ok(workspace_root.join("dist-desktop-resources/backend/cuer-bridge"))
 }

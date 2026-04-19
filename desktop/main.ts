@@ -1,166 +1,28 @@
 import { invoke } from "@tauri-apps/api/core";
+import type {
+  AccountGatewaySummary,
+  PlannerExecutionResult,
+  PlannerPlanResult,
+  ProjectWorkGatewaySummary,
+  ProviderAccountSummary,
+  ProviderCatalogItem,
+  QueueSummary,
+  UsageEventSummary,
+  UsageSummaryView,
+  WorkspaceOverview,
+  WorkspaceProjectSummary,
+} from "../src/core/app/workspaceAppTypes.js";
+import type {
+  AuthMethodType,
+  Plan,
+  PlannerInquiry,
+  Project,
+  ProviderType,
+  Task,
+  TaskDependency,
+} from "../src/domain/index.js";
 
 type Screen = "accounts" | "planner";
-type AuthMethodType = "api_key" | "oauth" | "local_endpoint" | "custom";
-type ProviderType =
-  | "openai"
-  | "anthropic"
-  | "openai-compatible"
-  | "ollama"
-  | "self-hosted-router"
-  | "custom";
-
-interface WorkspaceConfig {
-  createdAt: string;
-  defaultPlanner: string;
-  defaultRunner: string;
-  projectName: string;
-  projectRoot: string;
-  schemaVersion: number;
-  updatedAt: string;
-}
-
-interface Project {
-  createdAt: string;
-  id: string;
-  name: string;
-  rootPath: string;
-  updatedAt: string;
-}
-
-interface Plan {
-  createdAt: string;
-  goal: string;
-  id: string;
-  planner: string;
-  status: string;
-  summary: string;
-  updatedAt: string;
-}
-
-interface QueueSummary {
-  blockedTaskIds: string[];
-  doneTaskIds: string[];
-  failedTaskIds: string[];
-  readyTaskIds: string[];
-  runningTaskIds: string[];
-}
-
-interface WorkspaceProjectSummary {
-  latestPlan: Plan | null;
-  project: Project;
-  queue: QueueSummary;
-  taskCount: number;
-}
-
-interface ProviderCatalogItem {
-  baseUrlRequirement: "optional" | "required";
-  defaultBaseUrl: string | null;
-  description: string;
-  label: string;
-  supportedAuthMethods: AuthMethodType[];
-  type: ProviderType;
-}
-
-interface ProviderAccountSummary {
-  authMethodType: AuthMethodType | null;
-  baseUrl: string | null;
-  canExecute: boolean;
-  canPlan: boolean;
-  createdAt: string;
-  credentialStatus: "configured" | "pending" | "missing";
-  defaultModel: string | null;
-  id: string;
-  name: string;
-  providerLabel: string;
-  providerType: ProviderType;
-  secretHint: string | null;
-  status: string;
-  updatedAt: string;
-}
-
-interface UsageEventSummary {
-  accountId: string;
-  accountName: string;
-  id: string;
-  model: string | null;
-  operation: string;
-  providerLabel: string;
-  providerType: ProviderType;
-  recordedAt: string;
-}
-
-interface ProjectWorkGatewaySummary {
-  accountId: string | null;
-  accountName: string | null;
-  authMethodType: AuthMethodType | null;
-  isReady: boolean;
-  providerLabel: string | null;
-  providerType: ProviderType | null;
-  reason: string | null;
-}
-
-interface UsageSummaryView {
-  currencies: string[];
-  lastRecordedAt: string | null;
-  totalCost: number | null;
-  totalEvents: number;
-}
-
-interface AccountManagerOverview {
-  accounts: ProviderAccountSummary[];
-  projectWorkGateway: ProjectWorkGatewaySummary;
-  providers: ProviderCatalogItem[];
-  recentUsage: UsageEventSummary[];
-  usageSummary: UsageSummaryView;
-}
-
-interface WorkspaceOverview {
-  accountManager: AccountManagerOverview;
-  config: WorkspaceConfig;
-  currentProject: WorkspaceProjectSummary | null;
-  projects: WorkspaceProjectSummary[];
-  workspacePath: string;
-}
-
-interface TaskDependency {
-  dependsOnTaskId: string;
-  id: string;
-  taskId: string;
-}
-
-interface Task {
-  acceptanceCriteria: string[];
-  description: string;
-  id: string;
-  priority: number;
-  status: string;
-  title: string;
-  type: string;
-}
-
-interface PlannerQuestion {
-  id: string;
-  question: string;
-  why: string;
-}
-
-interface PlannerInquiry {
-  blockingUnknowns: string[];
-  questions: PlannerQuestion[];
-  sourceProjectId: string;
-  summary: string;
-}
-
-interface AccountGatewaySummary {
-  accountId: string;
-  accountName: string;
-  authMethodType: AuthMethodType | null;
-  defaultModel: string | null;
-  providerLabel: string;
-  providerType: ProviderType;
-}
-
 interface PlannerQuestionsResult {
   gateway: AccountGatewaySummary;
   inquiry: PlannerInquiry;
@@ -170,18 +32,7 @@ interface PlannerQuestionsResult {
   workspace: WorkspaceOverview;
 }
 
-interface PlannerPlanResult {
-  dependencies: TaskDependency[];
-  gateway: AccountGatewaySummary;
-  kind: "plan";
-  plan: Plan;
-  planner: string;
-  rawResponse: unknown;
-  tasks: Task[];
-  workspace: WorkspaceOverview;
-}
-
-type PlannerResult = PlannerQuestionsResult | PlannerPlanResult;
+type PlannerResult = PlannerExecutionResult;
 
 interface CreateProviderAccountPayload {
   authMethodType: AuthMethodType;

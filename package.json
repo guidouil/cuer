@@ -19,14 +19,16 @@
   "scripts": {
     "build": "npm run clean && tsc -p tsconfig.json",
     "clean": "rm -rf dist",
-    "desktop:build": "vite build",
+    "desktop:bridge": "node scripts/buildDesktopBridge.mjs",
+    "desktop:build": "vite build && npm run desktop:bridge",
     "desktop:dev": "vite",
     "dev": "tsx src/cli/index.ts",
     "install:local": "npm install --global --prefix \"${CUER_NPM_PREFIX:-$HOME/.local}\" .",
     "prepare": "npm run build",
     "start": "node dist/cli/index.js",
+    "test": "tsc --noEmit -p tsconfig.test.json && node --import tsx --test test/*.test.ts",
     "tauri:build": "npm run build && tauri build",
-    "tauri:dev": "npm run build && tauri dev",
+    "tauri:dev": "npm run build && npm run desktop:bridge && tauri dev",
     "tauri": "tauri",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
@@ -38,6 +40,8 @@
     "@tauri-apps/cli": "^2.10.1",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.9.2",
+    "esbuild": "^0.25.11",
+    "postject": "^1.0.0-alpha.6",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2",
     "vite": "^6.4.2"

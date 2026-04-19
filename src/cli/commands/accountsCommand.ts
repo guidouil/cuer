@@ -5,7 +5,13 @@ import type { Terminal } from "../terminal.js";
 const workspaceAppService = new WorkspaceAppService();
 
 export function runAccountsCommand(rootPath: string, terminal: Terminal): void {
-  const overview = workspaceAppService.getWorkspaceOverview(rootPath);
+  const overview = workspaceAppService.tryGetWorkspaceOverview(rootPath);
+  if (!overview) {
+    terminal.info(`Workspace: ${rootPath}`);
+    terminal.info('No Cuer workspace found yet. Run "cuer init" or "cuer add-account" first.');
+    return;
+  }
+
   const accountManager = overview.accountManager;
 
   terminal.info(`Workspace: ${overview.workspacePath}`);

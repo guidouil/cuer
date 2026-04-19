@@ -9,6 +9,11 @@
     "beforeBuildCommand": "npm run desktop:build",
     "frontendDist": "../dist-desktop"
   },
+  "bundle": {
+    "resources": {
+      "../dist-desktop-resources/backend/": "backend/"
+    }
+  },
   "app": {
     "windows": [
       {

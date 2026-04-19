@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { cwd } from "node:process";
+import { cwd, execPath } from "node:process";
 
 import { WorkspaceAppService } from "../core/app/workspaceAppService.js";
 
@@ -12,7 +12,7 @@ void main();
 
 async function main(): Promise<void> {
   try {
-    const [command, rootPath = cwd(), ...args] = process.argv.slice(2);
+    const [command, rootPath = cwd(), ...args] = readBridgeArgs(process.argv);
 
     switch (command) {
       case "workspace-overview":
@@ -76,4 +76,13 @@ async function main(): Promise<void> {
 
 function writeJson(value: unknown): void {
   process.stdout.write(`${JSON.stringify(value)}\n`);
+}
+
+function readBridgeArgs(argv: string[]): string[] {
+  const candidate = argv[1];
+  if (candidate && (candidate === argv[0] || candidate === execPath || /\.([cm]?js)$/.test(candidate))) {
+    return argv.slice(2);
+  }
+
+  return argv.slice(1);
 }

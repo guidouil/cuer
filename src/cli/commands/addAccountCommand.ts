@@ -4,7 +4,7 @@ import { WorkspaceAppService } from "../../core/app/workspaceAppService.js";
 import { readOptionValue } from "../arguments.js";
 
 import type { AuthMethodType, ProviderType } from "../../domain/index.js";
-import type { ProviderCatalogItem } from "../../core/app/workspaceAppService.js";
+import type { ProviderCatalogItem } from "../../core/app/workspaceAppTypes.js";
 import type { Terminal } from "../terminal.js";
 
 const workspaceAppService = new WorkspaceAppService();
