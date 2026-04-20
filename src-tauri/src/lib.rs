@@ -14,11 +14,22 @@ fn run_planner(
     app: tauri::AppHandle,
     goal: String,
     clarification_answers: Option<Value>,
+    planner_name: Option<String>,
+    planner_response_json: Option<String>,
 ) -> Result<Value, String> {
     let answers_json = clarification_answers
         .unwrap_or_else(|| Value::Array(Vec::new()))
         .to_string();
-    run_bridge(&app, "run-planner", vec![goal, answers_json])
+    run_bridge(
+        &app,
+        "run-planner",
+        vec![
+            goal,
+            answers_json,
+            planner_name.unwrap_or_default(),
+            planner_response_json.unwrap_or_default(),
+        ],
+    )
 }
 
 #[tauri::command]

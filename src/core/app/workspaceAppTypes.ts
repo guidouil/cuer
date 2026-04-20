@@ -20,8 +20,16 @@ export interface QueueSummary {
   runningTaskIds: string[];
 }
 
+export interface PendingPlannerInquirySummary {
+  createdAt: string;
+  goal: string;
+  inquiry: PlannerInquiry;
+  planner: string;
+}
+
 export interface WorkspaceProjectSummary {
   latestPlan: Plan | null;
+  pendingPlannerInquiry: PendingPlannerInquirySummary | null;
   project: Project;
   queue: QueueSummary;
   taskCount: number;

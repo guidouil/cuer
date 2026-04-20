@@ -1,11 +1,13 @@
-import { text as readStreamText } from "node:stream/consumers";
-import { stdin, stdout } from "node:process";
-
 import { WorkspaceAppService } from "../../core/app/workspaceAppService.js";
-import { readTextFile } from "../../filesystem/workspace.js";
 import { readOptionValue, readPositionalArgs } from "../arguments.js";
+import {
+  canPromptForClarifications,
+  collectClarificationAnswers,
+  readPlannerResponse,
+  renderPlannerInquiry,
+} from "./plannerCliSupport.js";
 
-import type { PlannerAnswer, PlannerInquiry } from "../../domain/index.js";
+import type { PlannerAnswer } from "../../domain/index.js";
 import type { Terminal } from "../terminal.js";
 
 const PLAN_OPTIONS_WITH_VALUES = [
@@ -72,65 +74,6 @@ export async function runPlanCommand(rootPath: string, args: string[], terminal:
   terminal.info(`Goal: ${result.plan.goal}`);
   terminal.info(`Planner: ${result.planner}`);
   terminal.info(`Tasks: ${result.tasks.length} total, ${readyCount} ready, ${blockedCount} blocked`);
-}
-
-function renderPlannerInquiry(planner: string, inquiry: PlannerInquiry, terminal: Terminal): void {
-  terminal.info("Planner needs clarification before creating a plan.");
-  terminal.info(`Planner: ${planner}`);
-  terminal.info(`Summary: ${inquiry.summary}`);
-  terminal.info(`Planner project id: ${inquiry.sourceProjectId}`);
-  terminal.info("");
-  terminal.info("Blocking unknowns:");
-  if (inquiry.blockingUnknowns.length === 0) {
-    terminal.info("  - none");
-  } else {
-    for (const blocker of inquiry.blockingUnknowns) {
-      terminal.info(`  - ${blocker}`);
-    }
-  }
-
-  terminal.info("");
-  terminal.info("Questions:");
-  for (const question of inquiry.questions) {
-    terminal.info(`  - [${question.id}] ${question.question}`);
-    terminal.info(`    Why: ${question.why}`);
-  }
-}
-
-async function collectClarificationAnswers(
-  inquiry: PlannerInquiry,
-  terminal: Terminal,
-): Promise<PlannerAnswer[] | null> {
-  const answers: PlannerAnswer[] = [];
-
-  for (const question of inquiry.questions) {
-    terminal.info("");
-    terminal.info(`[${question.id}] ${question.question}`);
-    const answer = (await terminal.prompt("Answer: ")).trim();
-    if (answer.length === 0) {
-      return null;
-    }
-
-    answers.push({
-      answer,
-      question: question.question,
-      questionId: question.id,
-    });
-  }
-
-  return answers;
-}
-
-function canPromptForClarifications(): boolean {
-  return stdin.isTTY === true && stdout.isTTY === true;
-}
-
-async function readPlannerResponse(filePath: string): Promise<string> {
-  if (filePath === "-") {
-    return (await readStreamText(process.stdin)).trim();
-  }
-
-  return readTextFile(filePath);
 }
 
 async function resolveGoal(args: string[], terminal: Terminal): Promise<string> {

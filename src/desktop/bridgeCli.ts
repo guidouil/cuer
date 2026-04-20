@@ -57,10 +57,14 @@ async function main(): Promise<void> {
         }
 
         const clarificationAnswers = parsePlannerAnswers(args[1]);
+        const plannerName = args[2]?.trim() || undefined;
+        const plannerResponseJson = args[3]?.trim() || undefined;
         writeJson(
           workspaceAppService.runPlanner({
             ...(clarificationAnswers.length > 0 ? { clarificationAnswers } : {}),
             goal,
+            ...(plannerName ? { plannerName } : {}),
+            ...(plannerResponseJson ? { plannerResponseJson } : {}),
             rootPath,
           }),
         );

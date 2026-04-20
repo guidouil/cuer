@@ -27,6 +27,7 @@ V0 provides:
 - a `show-artifact` command to inspect one execution artifact in detail
 - a `show-task` command to inspect one task with state, dependencies, prompt, events, and artifacts
 - a `show-plan` command to inspect the current task graph with dependencies and latest artifacts
+- a `resume` command to continue the latest pending planner clarification round from persisted local state
 
 ## Prerequisites
 
@@ -67,6 +68,7 @@ cuer accounts
 cuer add-account --provider openai --name "Primary OpenAI" --auth api_key --secret-env OPENAI_API_KEY
 cuer plan "Ship a first local workflow for task orchestration"
 cuer plan --planner-response planner-result.json --planner anthropic:claude --goal "Ship a first local workflow for task orchestration"
+cuer resume
 cuer tasks
 cuer run
 cuer task-history
@@ -85,6 +87,7 @@ npm run dev -- accounts
 npm run dev -- add-account --provider openai --name "Primary OpenAI" --auth api_key --secret-env OPENAI_API_KEY
 npm run dev -- plan "Ship a first local workflow for task orchestration"
 npm run dev -- plan --planner-response planner-result.json --planner anthropic:claude --goal "Ship a first local workflow for task orchestration"
+npm run dev -- resume
 npm run dev -- tasks
 npm run dev -- run
 npm run dev -- task-history
@@ -131,6 +134,9 @@ The desktop app currently provides:
 - a planner screen gated by the Account Manager
 - planner results rendered as clarification questions or a task list
 - a clarification follow-up form that can continue planning inside the desktop shell
+- pending planner clarifications restored from persisted local state after reopening the desktop app
+- an explicit resume action in the project view when a planner clarification round is pending
+- import of a fresh external planner JSON response directly in the desktop clarification flow
 - a raw backend response panel for debugging
 
 ## Desktop architecture
@@ -245,6 +251,14 @@ src-tauri/
 - renders clarification questions when the external response is in `ask_user` mode
 - stores the plan, tasks, dependencies, and events in SQLite
 - writes a JSON snapshot to `.cuer/plans/`
+
+### `cuer resume`
+
+- reloads the latest pending planner inquiry from persisted workspace events
+- resumes local planner clarification rounds without requiring the original interactive shell
+- prompts for answers in a TTY, or accepts `--answers-file <file>` with JSON answers keyed by question id
+- accepts `--planner-response <file>` and `--planner <name>` when the pending inquiry came from an external planner
+- records clarification answers and either creates the plan or stores a new pending inquiry round
 
 ### `cuer tasks`
 
@@ -371,7 +385,7 @@ If the response mode is `ask_user`, Cuer prints the blocking questions and recor
 - provider-backed usage and cost writes are scaffolded, but the current local planner and manual runner do not emit full real provider accounting yet
 - the planner is heuristic and deliberately simple even though it can now stop for clarification before task decomposition
 - the current runner is a manual external handoff, not a live agent execution backend
-- no `review` or `resume` command yet
+- no `review` command yet
 - no TUI or local UI yet
 - no remote sync, cloud service, or multi-user workflow
 
@@ -382,5 +396,5 @@ If the response mode is `ask_user`, Cuer prints the blocking questions and recor
 - add explicit account selection and richer policy controls on top of the current default gateway
 - add richer runner adapters for external coding agents
 - add execution queue operations beyond single-task dispatch
-- add richer review and resume flows
+- add richer review flows and broader resume coverage beyond planner clarification
 - add a terminal UI only when the command model is stable

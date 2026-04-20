@@ -5,6 +5,7 @@ import {
   createPlannerInquiry,
   parseExternalPlannerResponse,
 } from "../planner/plannerJson.js";
+import { findPendingPlannerInquiry } from "../planner/pendingPlannerInquiry.js";
 import { PlanningService } from "../planner/planningService.js";
 import { SimplePlanner } from "../planner/simplePlanner.js";
 import {
@@ -21,6 +22,7 @@ import type {
   AccountGatewaySummary,
   CreateProviderAccountResult,
   PlannerExecutionResult,
+  PendingPlannerInquirySummary,
   ProjectWorkGatewaySummary,
   ProviderAccountSummary,
   ProviderCatalogItem,
@@ -95,6 +97,26 @@ export class WorkspaceAppService {
     }
   }
 
+  getPendingPlannerInquiry(rootPath: string): PendingPlannerInquirySummary | null {
+    const paths = resolveWorkspacePaths(rootPath);
+    if (!workspaceExists(paths)) {
+      return null;
+    }
+
+    const context = WorkspaceContext.open(rootPath);
+
+    try {
+      const project = context.repositories.projects.findByRootPath(rootPath);
+      if (!project) {
+        return null;
+      }
+
+      return inspectPendingPlannerInquiry(context, project);
+    } finally {
+      context.close();
+    }
+  }
+
   runPlanner(input: RunPlannerInput): PlannerExecutionResult {
     const context = WorkspaceContext.open(input.rootPath, { autoInitialize: true });
 
@@ -118,7 +140,7 @@ export class WorkspaceAppService {
       const planningService = new PlanningService(new SimplePlanner());
       const result = planningService.createInitialPlan(context, project, input.goal, input.clarificationAnswers ?? []);
       if (result.kind === "questions") {
-        recordPlannerInquiryEvent(context, project, result.planner, result.inquiry);
+        recordPlannerInquiryEvent(context, project, result.planner, input.goal, result.inquiry);
 
         return {
           kind: "questions",
@@ -163,7 +185,7 @@ export class WorkspaceAppService {
 
     if (rawResponse.mode === "ask_user") {
       const inquiry = createPlannerInquiry(rawResponse);
-      recordPlannerInquiryEvent(context, project, plannerName, inquiry);
+      recordPlannerInquiryEvent(context, project, plannerName, input.goal, inquiry);
 
       return {
         kind: "questions",
@@ -229,6 +251,7 @@ function buildProjectSummary(context: WorkspaceContext, project: Project): Works
 
   return {
     latestPlan: status.plan,
+    pendingPlannerInquiry: inspectPendingPlannerInquiry(context, project),
     project,
     queue: {
       blockedTaskIds: status.queue.blockedTaskIds,
@@ -239,6 +262,13 @@ function buildProjectSummary(context: WorkspaceContext, project: Project): Works
     },
     taskCount: status.tasks.length,
   };
+}
+
+function inspectPendingPlannerInquiry(
+  context: WorkspaceContext,
+  project: Project,
+): PendingPlannerInquirySummary | null {
+  return findPendingPlannerInquiry(context.repositories.events.listRecentByProjectId(project.id, 50));
 }
 
 function mapAccountRecord(record: AccountRecord): ProviderAccountSummary {
@@ -366,6 +396,7 @@ function recordPlannerInquiryEvent(
   context: WorkspaceContext,
   project: Project,
   plannerName: string,
+  goal: string,
   inquiry: PlannerInquiry,
 ): void {
   context.repositories.events.create({
@@ -376,6 +407,7 @@ function recordPlannerInquiryEvent(
     type: "planner.questions.generated",
     payload: {
       blockingUnknowns: inquiry.blockingUnknowns,
+      goal,
       planner: plannerName,
       projectSearch: inquiry.projectSearch,
       questions: inquiry.questions,

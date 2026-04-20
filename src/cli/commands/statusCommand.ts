@@ -1,6 +1,7 @@
 import { AccountManagerService } from "../../core/accounts/accountManagerService.js";
 import { getProjectStatus } from "../../core/context/projectStatus.js";
 import { WorkspaceContext } from "../../core/context/workspaceContext.js";
+import { findPendingPlannerInquiry } from "../../core/planner/pendingPlannerInquiry.js";
 import { renderEventLines, shortIdentifier } from "../format.js";
 
 import type { Terminal } from "../terminal.js";
@@ -32,6 +33,13 @@ export function runStatusCommand(rootPath: string, terminal: Terminal): void {
 
     terminal.info(`Project: ${project.name}`);
     terminal.info(`Root: ${project.rootPath}`);
+
+    const pendingPlannerInquiry = findPendingPlannerInquiry(context.repositories.events.listRecentByProjectId(project.id, 50));
+    if (pendingPlannerInquiry) {
+      terminal.info(
+        `Pending planner inquiry: ${pendingPlannerInquiry.inquiry.questions.length} question(s) from ${pendingPlannerInquiry.planner}`,
+      );
+    }
 
     if (!status.plan) {
       terminal.info("Plan: none");

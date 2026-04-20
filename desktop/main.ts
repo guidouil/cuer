@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  PendingPlannerInquirySummary,
   PlannerExecutionResult,
   PlannerPlanResult,
   ProjectWorkGatewaySummary,
@@ -52,9 +53,12 @@ interface AppState {
   isSavingAccount: boolean;
   lastPlannerResult: PlannerResult | null;
   overview: WorkspaceOverview | null;
+  pendingPlannerInquiry: PendingPlannerInquirySummary | null;
   plannerActiveGoal: string | null;
   plannerClarificationAnswers: Record<string, string>;
   plannerGoal: string;
+  plannerResponseFileName: string | null;
+  plannerResponseJson: string | null;
   screen: Screen;
 }
 
@@ -74,9 +78,12 @@ const state: AppState = {
   isSavingAccount: false,
   lastPlannerResult: null,
   overview: null,
+  pendingPlannerInquiry: null,
   plannerActiveGoal: null,
   plannerClarificationAnswers: {},
   plannerGoal: "",
+  plannerResponseFileName: null,
+  plannerResponseJson: null,
   screen: "accounts",
 };
 
@@ -96,9 +103,8 @@ async function initialize(): Promise<void> {
 async function loadOverview(): Promise<void> {
   try {
     const overview = await invoke<WorkspaceOverview>("get_workspace_overview");
-    state.overview = overview;
+    applyOverviewState(overview);
     state.debugPayload = overview;
-    ensureAccountFormDefaults(overview.accountManager.providers);
   } catch (error) {
     state.errorMessage = normalizeError(error);
   } finally {
@@ -135,6 +141,7 @@ function render(): void {
   `;
 
   bindNavigation();
+  bindPendingPlannerActions();
   bindAccountForm();
   bindPlannerForm();
   bindPlannerClarificationForm();
@@ -423,22 +430,21 @@ function renderPlanner(): string {
 }
 
 function renderPlannerResult(): string {
-  if (!state.lastPlannerResult) {
-    return "";
-  }
-
-  if (state.lastPlannerResult.kind === "questions") {
+  const plannerInquiry = activePlannerInquiry();
+  if (plannerInquiry) {
     return `
       <section class="panel">
         <div class="section-header">
           <div>
             <p class="eyebrow">Planner Clarifications</p>
-            <h3>${escapeHtml(state.lastPlannerResult.inquiry.summary)}</h3>
+            <h3>${escapeHtml(plannerInquiry.inquiry.summary)}</h3>
           </div>
+          <span class="pill">${escapeHtml(plannerInquiry.planner)}</span>
         </div>
-        <p class="subtle">Gateway ${escapeHtml(`${state.lastPlannerResult.gateway.accountName} (${state.lastPlannerResult.gateway.providerLabel})`)}</p>
+        <p class="subtle">${escapeHtml(plannerGatewayLabel())}</p>
+        <p class="subtle">Goal in progress: ${escapeHtml(plannerInquiry.goal)}</p>
         <ol class="item-list numbered">
-          ${state.lastPlannerResult.inquiry.questions
+          ${plannerInquiry.inquiry.questions
             .map(
               (question) => `
                 <li class="item-card">
@@ -452,9 +458,31 @@ function renderPlannerResult(): string {
         <form id="planner-clarification-form" class="stack-form">
           <div class="field">
             <label for="planner-active-goal">Goal in progress</label>
-            <textarea id="planner-active-goal" disabled>${escapeHtml(state.plannerActiveGoal ?? state.plannerGoal)}</textarea>
+            <textarea id="planner-active-goal" disabled>${escapeHtml(plannerInquiry.goal)}</textarea>
           </div>
-          ${state.lastPlannerResult.inquiry.questions
+          ${
+            isLocalPlannerName(plannerInquiry.planner)
+              ? ""
+              : `
+                <div class="field">
+                  <label for="planner-response-file">Import planner response JSON</label>
+                  <input
+                    id="planner-response-file"
+                    name="plannerResponseFile"
+                    type="file"
+                    accept=".json,application/json"
+                  />
+                  <p class="subtle">
+                    ${escapeHtml(
+                      state.plannerResponseFileName
+                        ? `Selected file: ${state.plannerResponseFileName}`
+                        : `Required for ${plannerInquiry.planner}. Import the next planner JSON response after answering the questions.`,
+                    )}
+                  </p>
+                </div>
+              `
+          }
+          ${plannerInquiry.inquiry.questions
             .map(
               (question) => `
                 <div class="field">
@@ -476,6 +504,10 @@ function renderPlannerResult(): string {
         </form>
       </section>
     `;
+  }
+
+  if (!state.lastPlannerResult || state.lastPlannerResult.kind !== "plan") {
+    return "";
   }
 
   return `
@@ -536,14 +568,39 @@ function renderProjectSummary(): string {
               <li class="item-card">
                 <div class="item-title-row">
                   <strong>${escapeHtml(summary.project.name)}</strong>
-                  <span class="pill">${escapeHtml(summary.latestPlan?.status ?? "no-plan")}</span>
+                  <div class="meta-row">
+                    <span class="pill">${escapeHtml(summary.latestPlan?.status ?? "no-plan")}</span>
+                    ${
+                      summary.pendingPlannerInquiry
+                        ? `<span class="pill">Planner waiting</span>`
+                        : ""
+                    }
+                  </div>
                 </div>
                 <p class="path">${escapeHtml(summary.project.rootPath)}</p>
                 <div class="meta-row">
                   <span>Tasks ${summary.taskCount}</span>
                   <span>Ready ${summary.queue.readyTaskIds.length}</span>
                   <span>Running ${summary.queue.runningTaskIds.length}</span>
+                  <span>${escapeHtml(summary.pendingPlannerInquiry ? `${summary.pendingPlannerInquiry.inquiry.questions.length} pending question(s)` : "No pending planner inquiry")}</span>
                 </div>
+                ${
+                  summary.pendingPlannerInquiry
+                    ? `
+                      <div class="form-actions">
+                        <p class="subtle">${escapeHtml(summary.pendingPlannerInquiry.inquiry.summary)}</p>
+                        <button
+                          class="secondary-button"
+                          type="button"
+                          data-action="resume-pending"
+                          data-project-id="${escapeAttribute(summary.project.id)}"
+                        >
+                          Resume planner
+                        </button>
+                      </div>
+                    `
+                    : ""
+                }
               </li>
             `,
           )
@@ -588,6 +645,25 @@ function bindNavigation(): void {
         state.screen = screen;
         render();
       }
+    });
+  }
+}
+
+function bindPendingPlannerActions(): void {
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-action="resume-pending"]')) {
+    button.addEventListener("click", () => {
+      const projectId = button.dataset.projectId;
+      if (!projectId || !state.overview) {
+        return;
+      }
+
+      const projectSummary = state.overview.projects.find((summary) => summary.project.id === projectId);
+      if (!projectSummary?.pendingPlannerInquiry) {
+        return;
+      }
+
+      resumePendingPlannerInquiry(projectSummary.pendingPlannerInquiry);
+      render();
     });
   }
 }
@@ -657,9 +733,8 @@ function bindAccountForm(): void {
         { payload },
       );
 
-      state.overview = result.workspace;
+      applyOverviewState(result.workspace);
       state.debugPayload = result;
-      ensureAccountFormDefaults(result.workspace.accountManager.providers);
       state.accountForm.name = "";
       state.accountForm.defaultModel = "";
       state.accountForm.secretValue = "";
@@ -715,6 +790,29 @@ function bindPlannerClarificationForm(): void {
     return;
   }
 
+  const plannerResponseFileInput = form.querySelector<HTMLInputElement>("#planner-response-file");
+  plannerResponseFileInput?.addEventListener("change", async () => {
+    const file = plannerResponseFileInput.files?.[0];
+    if (!file) {
+      state.plannerResponseFileName = null;
+      state.plannerResponseJson = null;
+      render();
+      return;
+    }
+
+    try {
+      state.plannerResponseFileName = file.name;
+      state.plannerResponseJson = await file.text();
+      state.errorMessage = null;
+    } catch (error) {
+      state.plannerResponseFileName = null;
+      state.plannerResponseJson = null;
+      state.errorMessage = normalizeError(error);
+    } finally {
+      render();
+    }
+  });
+
   for (const field of form.querySelectorAll<HTMLTextAreaElement>("[data-question-id]")) {
     field.addEventListener("input", () => {
       const questionId = field.dataset.questionId;
@@ -729,18 +827,26 @@ function bindPlannerClarificationForm(): void {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
 
-    if (!state.lastPlannerResult || state.lastPlannerResult.kind !== "questions") {
+    const plannerInquiry = activePlannerInquiry();
+    if (!plannerInquiry) {
       return;
     }
 
-    const goal = state.plannerActiveGoal?.trim() ?? state.plannerGoal.trim();
+    const goal = plannerInquiry.goal.trim();
     if (goal.length === 0) {
       state.errorMessage = "Planning goal is missing.";
       render();
       return;
     }
 
-    const clarificationAnswers = state.lastPlannerResult.inquiry.questions.map((question) => ({
+    const requiresPlannerResponse = !isLocalPlannerName(plannerInquiry.planner);
+    if (requiresPlannerResponse && !state.plannerResponseJson) {
+      state.errorMessage = "Import a planner response JSON file before continuing this external planner round.";
+      render();
+      return;
+    }
+
+    const clarificationAnswers = plannerInquiry.inquiry.questions.map((question) => ({
       answer: (state.plannerClarificationAnswers[question.id] ?? "").trim(),
       question: question.question,
       questionId: question.id,
@@ -760,7 +866,12 @@ function bindPlannerClarificationForm(): void {
       const result = await invoke<PlannerResult>("run_planner", {
         clarification_answers: clarificationAnswers,
         goal,
+        ...(requiresPlannerResponse ? { planner_name: plannerInquiry.planner } : {}),
+        ...(requiresPlannerResponse ? { planner_response_json: state.plannerResponseJson } : {}),
       });
+      if (requiresPlannerResponse) {
+        resetPlannerResponseImport();
+      }
       applyPlannerResult(result, goal);
     } catch (error) {
       state.errorMessage = normalizeError(error);
@@ -801,12 +912,18 @@ function ensureAccountFormDefaults(providers: ProviderCatalogItem[]): void {
 
 function applyPlannerResult(result: PlannerResult, goal: string): void {
   state.lastPlannerResult = result;
-  state.overview = result.workspace;
   state.debugPayload = result.rawResponse;
+  applyOverviewState(result.workspace);
 
   if (result.kind === "questions") {
     state.plannerActiveGoal = goal;
     state.plannerGoal = goal;
+    state.pendingPlannerInquiry = {
+      createdAt: new Date().toISOString(),
+      goal,
+      inquiry: result.inquiry,
+      planner: result.planner,
+    };
     state.plannerClarificationAnswers = buildClarificationAnswerState(
       result.inquiry.questions.map((question) => question.id),
       state.plannerClarificationAnswers,
@@ -814,9 +931,47 @@ function applyPlannerResult(result: PlannerResult, goal: string): void {
     return;
   }
 
+  state.pendingPlannerInquiry = null;
   state.plannerActiveGoal = null;
   state.plannerClarificationAnswers = {};
   state.plannerGoal = "";
+  resetPlannerResponseImport();
+}
+
+function applyOverviewState(overview: WorkspaceOverview): void {
+  state.overview = overview;
+  ensureAccountFormDefaults(overview.accountManager.providers);
+
+  const pendingPlannerInquiry = selectPendingPlannerInquiry(overview);
+  const inquiryChanged =
+    pendingPlannerInquiry?.createdAt !== state.pendingPlannerInquiry?.createdAt
+    || pendingPlannerInquiry?.planner !== state.pendingPlannerInquiry?.planner;
+  state.pendingPlannerInquiry = pendingPlannerInquiry;
+
+  if (!pendingPlannerInquiry) {
+    if (!state.lastPlannerResult || state.lastPlannerResult.kind !== "questions") {
+      state.plannerActiveGoal = null;
+      state.plannerClarificationAnswers = {};
+      resetPlannerResponseImport();
+    }
+    return;
+  }
+
+  state.plannerActiveGoal = pendingPlannerInquiry.goal;
+  if (state.plannerGoal.trim().length === 0) {
+    state.plannerGoal = pendingPlannerInquiry.goal;
+  }
+  if (inquiryChanged) {
+    resetPlannerResponseImport();
+  }
+  state.plannerClarificationAnswers = buildClarificationAnswerState(
+    pendingPlannerInquiry.inquiry.questions.map((question) => question.id),
+    state.plannerClarificationAnswers,
+  );
+
+  if (!state.lastPlannerResult || state.lastPlannerResult.kind !== "questions") {
+    state.screen = "planner";
+  }
 }
 
 function buildClarificationAnswerState(
@@ -828,6 +983,52 @@ function buildClarificationAnswerState(
     next[questionId] = current[questionId] ?? "";
   }
   return next;
+}
+
+function activePlannerInquiry(): PendingPlannerInquirySummary | null {
+  if (state.lastPlannerResult?.kind === "questions") {
+    return {
+      createdAt: new Date().toISOString(),
+      goal: state.plannerActiveGoal ?? state.plannerGoal,
+      inquiry: state.lastPlannerResult.inquiry,
+      planner: state.lastPlannerResult.planner,
+    };
+  }
+
+  return state.pendingPlannerInquiry;
+}
+
+function selectPendingPlannerInquiry(overview: WorkspaceOverview): PendingPlannerInquirySummary | null {
+  return overview.projects
+    .flatMap((summary) => (summary.pendingPlannerInquiry ? [summary.pendingPlannerInquiry] : []))
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] ?? null;
+}
+
+function resumePendingPlannerInquiry(inquiry: PendingPlannerInquirySummary): void {
+  state.pendingPlannerInquiry = inquiry;
+  state.plannerActiveGoal = inquiry.goal;
+  state.plannerGoal = inquiry.goal;
+  state.plannerClarificationAnswers = buildClarificationAnswerState(
+    inquiry.inquiry.questions.map((question) => question.id),
+    state.plannerClarificationAnswers,
+  );
+  if (isLocalPlannerName(inquiry.planner)) {
+    resetPlannerResponseImport();
+  }
+  state.screen = "planner";
+}
+
+function resetPlannerResponseImport(): void {
+  state.plannerResponseFileName = null;
+  state.plannerResponseJson = null;
+}
+
+function plannerGatewayLabel(): string {
+  if (state.lastPlannerResult?.kind === "questions") {
+    return `Gateway ${state.lastPlannerResult.gateway.accountName} (${state.lastPlannerResult.gateway.providerLabel})`;
+  }
+
+  return formatProjectGatewayLabel(state.overview?.accountManager.projectWorkGateway ?? null);
 }
 
 function selectedProvider(): ProviderCatalogItem | null {
@@ -888,6 +1089,22 @@ function renderTotalCost(summary: UsageSummaryView): string {
   }
 
   return `${summary.totalCost.toFixed(4)} ${summary.currencies[0] ?? ""}`.trim();
+}
+
+function formatProjectGatewayLabel(gateway: ProjectWorkGatewaySummary | null): string {
+  if (!gateway) {
+    return "Gateway status unavailable.";
+  }
+
+  if (gateway.isReady) {
+    return `Gateway ${gateway.accountName ?? "Unknown account"} (${gateway.providerLabel ?? "Unknown provider"})`;
+  }
+
+  return gateway.reason ?? "Gateway unavailable.";
+}
+
+function isLocalPlannerName(planner: string): boolean {
+  return planner.startsWith("simple-");
 }
 
 function normalizeError(error: unknown): string {
