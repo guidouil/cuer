@@ -18,7 +18,7 @@ V0 provides:
 - explicit domain entities for projects, plans, tasks, task dependencies, and events
 - account-gated planner and run flows that resolve provider access through the shared core
 - a simple isolated planner that generates an honest initial task graph
-- ingestion of strict external planner JSON responses compatible with `planner.md`
+- ingestion of strict external planner JSON responses compatible with `prompts/planner.md`
 - a task lifecycle engine that validates state transitions and keeps queue readiness synchronized
 - a first `run` command wired to an external runner port with a local manual handoff implementation
 - an explicit `update-task` command to report execution outcomes back into local state
@@ -174,7 +174,9 @@ After `cuer init`, the current directory receives:
 - `secrets/`: dedicated secret payload storage behind the secret-store abstraction
 - `plans/`: inspectable plan snapshots written as JSON
 - `artifacts/`: execution artifacts and future run outputs
-- `logs/`, `prompts/`, `skills/`: reserved for later execution flows
+- `logs/`: reserved for future execution logs
+- `prompts/`: generated task handoff prompts written during `cuer run`
+- `skills/`: reserved for future local skill data
 
 ## Repository structure
 
@@ -199,6 +201,7 @@ src/
   domain/
   integrations/
   utils/
+prompts/
 desktop/
 src-tauri/
 ```
@@ -235,7 +238,7 @@ src-tauri/
 - generates a simple initial plan with atomic tasks by default
 - accepts `--planner-response <file>` or `--planner-response -` to ingest a strict external JSON response
 - accepts `--planner <name>` to record the provider or planner label used for the external response
-- validates the external response against the `planner.md` schema before persisting anything
+- validates the external response against the `prompts/planner.md` schema before persisting anything
 - renders clarification questions when the external response is in `ask_user` mode
 - stores the plan, tasks, dependencies, and events in SQLite
 - writes a JSON snapshot to `.cuer/plans/`
@@ -335,11 +338,13 @@ Legacy stored plans may still display older task types such as `code`, `docs`, o
 
 ## Structured planner JSON
 
-`planner.md` defines a provider-neutral contract. Cuer only expects valid JSON that matches that schema; it does not depend on any provider SDK.
+`prompts/planner.md` defines a provider-neutral contract. Cuer only expects valid JSON that matches that schema; it does not depend on any provider SDK.
+
+Bundled prompt contracts live under `prompts/` at the repository root. Runtime handoff prompts generated for task execution live under `.cuer/prompts/`.
 
 Recommended flow:
 
-1. Send the user request plus `planner.md` to the provider of your choice.
+1. Send the user request plus `prompts/planner.md` to the provider of your choice.
 2. Force a JSON-only response.
 3. Save the response to a file, or pipe it to stdin.
 4. Ingest it with:
