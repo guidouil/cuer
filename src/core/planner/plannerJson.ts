@@ -3,6 +3,7 @@ import type {
   CreatePlanPlannerResponse,
   ExternalPlannerResponse,
   PlanDraft,
+  PlannerAnswer,
   PlannerInquiry,
   PlannerQuestion,
   PlannerResponseTaskType,
@@ -86,8 +87,13 @@ export function createPlannerInquiry(response: AskUserPlannerResponse): PlannerI
 export function createPlanDraftFromPlannerResponse(
   response: CreatePlanPlannerResponse,
   plannerName: string,
+  input: {
+    clarificationAnswers?: PlannerAnswer[];
+    goal: string;
+  },
 ): PlanDraft {
   const taskIndexById = new Map(response.tasks.map((task, index) => [task.id, index]));
+  const clarificationAnswers = input.clarificationAnswers ?? [];
 
   return {
     planner: normalizeText(plannerName) || "external-json-v1",
@@ -96,6 +102,11 @@ export function createPlanDraftFromPlannerResponse(
       assumptions: response.assumptions,
       projectSearch: response.projectSearch,
       qualityChecks: response.qualityChecks,
+      request: {
+        clarificationAnswers,
+        originalGoal: input.goal,
+        resolvedGoal: input.goal,
+      },
       sourceProjectId: response.projectId,
       unknowns: response.unknowns,
     },

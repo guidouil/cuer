@@ -4,7 +4,7 @@ import { cwd, execPath } from "node:process";
 
 import { WorkspaceAppService } from "../core/app/workspaceAppService.js";
 
-import type { AuthMethodType, ProviderType } from "../domain/index.js";
+import type { AuthMethodType, PlannerAnswer, ProviderType } from "../domain/index.js";
 
 const workspaceAppService = new WorkspaceAppService();
 
@@ -51,13 +51,15 @@ async function main(): Promise<void> {
         return;
       }
       case "run-planner": {
-        const goal = args.join(" ").trim();
+        const goal = args[0]?.trim() ?? "";
         if (goal.length === 0) {
           throw new Error("A goal is required for run-planner.");
         }
 
+        const clarificationAnswers = parsePlannerAnswers(args[1]);
         writeJson(
           workspaceAppService.runPlanner({
+            ...(clarificationAnswers.length > 0 ? { clarificationAnswers } : {}),
             goal,
             rootPath,
           }),
@@ -76,6 +78,37 @@ async function main(): Promise<void> {
 
 function writeJson(value: unknown): void {
   process.stdout.write(`${JSON.stringify(value)}\n`);
+}
+
+function parsePlannerAnswers(value: string | undefined): PlannerAnswer[] {
+  if (!value) {
+    return [];
+  }
+
+  const parsed = JSON.parse(value) as unknown;
+  if (!Array.isArray(parsed)) {
+    throw new Error("Planner clarification answers must be a JSON array.");
+  }
+
+  return parsed.map((entry, index) => {
+    if (!entry || typeof entry !== "object") {
+      throw new Error(`Planner clarification answer ${index + 1} is invalid.`);
+    }
+
+    const questionId = "questionId" in entry ? String(entry.questionId ?? "").trim() : "";
+    const question = "question" in entry ? String(entry.question ?? "").trim() : "";
+    const answer = "answer" in entry ? String(entry.answer ?? "").trim() : "";
+
+    if (!questionId || !question || !answer) {
+      throw new Error(`Planner clarification answer ${index + 1} is incomplete.`);
+    }
+
+    return {
+      answer,
+      question,
+      questionId,
+    };
+  });
 }
 
 function readBridgeArgs(argv: string[]): string[] {

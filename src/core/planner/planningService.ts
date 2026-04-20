@@ -1,30 +1,64 @@
-import type { Plan, PlanDraft, PlannerPort, Project, Task, TaskDependency } from "../../domain/index.js";
+import type {
+  Plan,
+  PlanDraft,
+  PlannerAnswer,
+  PlannerInquiry,
+  PlannerPort,
+  Project,
+  Task,
+  TaskDependency,
+} from "../../domain/index.js";
 import { writePlanSnapshot } from "../../filesystem/workspace.js";
 import { createId } from "../../utils/id.js";
 import { nowIso } from "../../utils/time.js";
 
 import type { WorkspaceContext } from "../context/workspaceContext.js";
 
+export interface PlanningInquiryResult {
+  inquiry: PlannerInquiry;
+  kind: "questions";
+  planner: string;
+}
+
 export interface PlanningResult {
+  kind: "plan";
   plan: Plan;
+  planner: string;
   tasks: Task[];
   dependencies: TaskDependency[];
 }
 
+export type InitialPlanningResult = PlanningInquiryResult | PlanningResult;
+
 export class PlanningService {
   constructor(private readonly planner?: PlannerPort) {}
 
-  createInitialPlan(context: WorkspaceContext, project: Project, goal: string): PlanningResult {
+  createInitialPlan(
+    context: WorkspaceContext,
+    project: Project,
+    goal: string,
+    clarificationAnswers: PlannerAnswer[] = [],
+  ): InitialPlanningResult {
     if (!this.planner) {
       throw new Error("Planning service is not configured with a planner.");
     }
 
-    const draft = this.planner.createPlan({
-      projectName: project.name,
+    const plannerDecision = this.planner.createPlan({
+      clarificationAnswers,
       goal,
+      projectId: project.id,
+      projectName: project.name,
     });
 
-    return this.createPlanFromDraft(context, project, goal, draft);
+    if (plannerDecision.kind === "questions") {
+      return {
+        kind: "questions",
+        inquiry: plannerDecision.inquiry,
+        planner: this.planner.name,
+      };
+    }
+
+    return this.createPlanFromDraft(context, project, plannerDecision.goal, plannerDecision.draft);
   }
 
   createPlanFromDraft(context: WorkspaceContext, project: Project, goal: string, draft: PlanDraft): PlanningResult {
@@ -99,7 +133,9 @@ export class PlanningService {
     });
 
     return {
+      kind: "plan",
       plan,
+      planner: draft.planner,
       tasks,
       dependencies,
     };

@@ -42,7 +42,11 @@ export function runStatusCommand(rootPath: string, terminal: Terminal): void {
     terminal.info(`Goal: ${status.plan.goal}`);
     terminal.info(`Planner: ${status.plan.planner}`);
     if (status.plan.details) {
+      if (status.plan.details.request.originalGoal !== status.plan.goal) {
+        terminal.info(`Original goal: ${status.plan.details.request.originalGoal}`);
+      }
       terminal.info(`Planner project id: ${status.plan.details.sourceProjectId}`);
+      terminal.info(`Clarifications: ${status.plan.details.request.clarificationAnswers.length}`);
     }
     terminal.info(
       `Tasks: ${status.tasks.length} total | ready ${status.queue.readyTaskIds.length} | blocked ${status.queue.blockedTaskIds.length} | running ${status.queue.runningTaskIds.length} | done ${status.queue.doneTaskIds.length} | failed ${status.queue.failedTaskIds.length}`,

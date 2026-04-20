@@ -129,7 +129,8 @@ The desktop app currently provides:
 - a form to register provider accounts, auth type, base URL, API key or placeholder auth data, and an optional default model
 - a usage and cost panel backed by local persistence placeholders
 - a planner screen gated by the Account Manager
-- planner results rendered as questions or a task list
+- planner results rendered as clarification questions or a task list
+- a clarification follow-up form that can continue planning inside the desktop shell
 - a raw backend response panel for debugging
 
 ## Desktop architecture
@@ -235,7 +236,9 @@ src-tauri/
 - initializes the workspace if missing
 - requires the Account Manager to resolve a planning gateway first
 - creates the project record if needed
-- generates a simple initial plan with atomic tasks by default
+- lets the local planner ask for clarification first when the goal is too underspecified
+- continues interactively in the CLI when clarification answers are needed and the session is attached to a TTY
+- generates a simple initial plan with atomic tasks when a safe minimal path is available
 - accepts `--planner-response <file>` or `--planner-response -` to ingest a strict external JSON response
 - accepts `--planner <name>` to record the provider or planner label used for the external response
 - validates the external response against the `prompts/planner.md` schema before persisting anything
@@ -366,7 +369,7 @@ If the response mode is `ask_user`, Cuer prints the blocking questions and recor
 
 - the current secret store is a dedicated local abstraction, not OS keychain integration yet
 - provider-backed usage and cost writes are scaffolded, but the current local planner and manual runner do not emit full real provider accounting yet
-- the planner is heuristic and deliberately simple
+- the planner is heuristic and deliberately simple even though it can now stop for clarification before task decomposition
 - the current runner is a manual external handoff, not a live agent execution backend
 - no `review` or `resume` command yet
 - no TUI or local UI yet

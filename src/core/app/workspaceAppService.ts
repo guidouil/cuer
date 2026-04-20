@@ -32,6 +32,8 @@ import type {
 
 import type {
   Plan,
+  PlannerAnswer,
+  PlannerInquiry,
   Project,
   Provider,
   Task,
@@ -39,6 +41,7 @@ import type {
 } from "../../domain/index.js";
 
 export interface RunPlannerInput {
+  clarificationAnswers?: PlannerAnswer[];
   goal: string;
   plannerName?: string;
   plannerResponseJson?: string;
@@ -104,19 +107,35 @@ export class WorkspaceAppService {
       }
 
       recordPlannerAccessResolvedEvent(context, project, gateway);
+      if ((input.clarificationAnswers?.length ?? 0) > 0) {
+        recordPlannerClarificationAnswersEvent(context, project, input);
+      }
 
       if (input.plannerResponseJson) {
         return this.runExternalPlanner(context, project, gateway, input);
       }
 
       const planningService = new PlanningService(new SimplePlanner());
-      const result = planningService.createInitialPlan(context, project, input.goal);
+      const result = planningService.createInitialPlan(context, project, input.goal, input.clarificationAnswers ?? []);
+      if (result.kind === "questions") {
+        recordPlannerInquiryEvent(context, project, result.planner, result.inquiry);
+
+        return {
+          kind: "questions",
+          gateway: mapGateway(gateway),
+          inquiry: result.inquiry,
+          planner: result.planner,
+          rawResponse: result.inquiry,
+          workspace: buildWorkspaceOverview(context, project.id, this.accountManager),
+        };
+      }
+
       const status = getProjectStatus(context, project);
 
       return {
         kind: "plan",
         gateway: mapGateway(gateway),
-        planner: result.plan.planner,
+        planner: result.planner,
         plan: result.plan,
         dependencies: result.dependencies,
         tasks: result.tasks,
@@ -144,24 +163,7 @@ export class WorkspaceAppService {
 
     if (rawResponse.mode === "ask_user") {
       const inquiry = createPlannerInquiry(rawResponse);
-      const timestamp = nowIso();
-
-      context.repositories.events.create({
-        id: createId("event"),
-        projectId: project.id,
-        planId: null,
-        taskId: null,
-        type: "planner.questions.generated",
-        payload: {
-          blockingUnknowns: inquiry.blockingUnknowns,
-          planner: plannerName,
-          projectSearch: inquiry.projectSearch,
-          questions: inquiry.questions,
-          sourceProjectId: inquiry.sourceProjectId,
-          summary: inquiry.summary,
-        },
-        createdAt: timestamp,
-      });
+      recordPlannerInquiryEvent(context, project, plannerName, inquiry);
 
       return {
         kind: "questions",
@@ -174,7 +176,10 @@ export class WorkspaceAppService {
     }
 
     const planningService = new PlanningService();
-    const draft = createPlanDraftFromPlannerResponse(rawResponse, plannerName);
+    const draft = createPlanDraftFromPlannerResponse(rawResponse, plannerName, {
+      goal: input.goal,
+      ...(input.clarificationAnswers ? { clarificationAnswers: input.clarificationAnswers } : {}),
+    });
     const result = planningService.createPlanFromDraft(context, project, input.goal, draft);
     const status = getProjectStatus(context, project);
 
@@ -333,6 +338,49 @@ function recordPlannerAccessResolvedEvent(
       authMethodType: gateway.authMethod?.type ?? null,
       defaultModel: gateway.account.defaultModel,
       providerType: gateway.provider.type,
+    },
+    createdAt: nowIso(),
+  });
+}
+
+function recordPlannerClarificationAnswersEvent(
+  context: WorkspaceContext,
+  project: Project,
+  input: RunPlannerInput,
+): void {
+  context.repositories.events.create({
+    id: createId("event"),
+    projectId: project.id,
+    planId: null,
+    taskId: null,
+    type: "planner.questions.answered",
+    payload: {
+      answers: input.clarificationAnswers ?? [],
+      goal: input.goal,
+    },
+    createdAt: nowIso(),
+  });
+}
+
+function recordPlannerInquiryEvent(
+  context: WorkspaceContext,
+  project: Project,
+  plannerName: string,
+  inquiry: PlannerInquiry,
+): void {
+  context.repositories.events.create({
+    id: createId("event"),
+    projectId: project.id,
+    planId: null,
+    taskId: null,
+    type: "planner.questions.generated",
+    payload: {
+      blockingUnknowns: inquiry.blockingUnknowns,
+      planner: plannerName,
+      projectSearch: inquiry.projectSearch,
+      questions: inquiry.questions,
+      sourceProjectId: inquiry.sourceProjectId,
+      summary: inquiry.summary,
     },
     createdAt: nowIso(),
   });

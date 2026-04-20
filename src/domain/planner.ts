@@ -2,6 +2,8 @@ import type { TaskType } from "./task.js";
 import type {
   PlanDetails,
   PlanQualityChecks,
+  PlannerAnswer,
+  PlannerInquiry,
   PlannerQuestion,
   ProjectSearchHints,
   TaskDetails,
@@ -9,6 +11,8 @@ import type {
 } from "./planning.js";
 
 export interface PlannerInput {
+  clarificationAnswers: PlannerAnswer[];
+  projectId: string;
   projectName: string;
   goal: string;
 }
@@ -35,8 +39,22 @@ export interface PlanDraft {
   dependencies: PlannedTaskDependencyDraft[];
 }
 
+export interface PlannerInquiryDecision {
+  inquiry: PlannerInquiry;
+  kind: "questions";
+}
+
+export interface PlannerPlanDecision {
+  draft: PlanDraft;
+  goal: string;
+  kind: "plan";
+}
+
+export type PlannerDecision = PlannerInquiryDecision | PlannerPlanDecision;
+
 export interface PlannerPort {
-  createPlan(input: PlannerInput): PlanDraft;
+  readonly name: string;
+  createPlan(input: PlannerInput): PlannerDecision;
 }
 
 export type PlannerResponseMode = "ask_user" | "create_plan";

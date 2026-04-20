@@ -45,8 +45,12 @@ function renderPlanSnapshot(snapshot: PlanInspectionSnapshot, terminal: Terminal
   terminal.info(`Goal: ${snapshot.plan.goal}`);
   terminal.info(`Planner: ${snapshot.plan.planner}`);
   if (snapshot.plan.details) {
+    if (snapshot.plan.details.request.originalGoal !== snapshot.plan.goal) {
+      terminal.info(`Original goal: ${snapshot.plan.details.request.originalGoal}`);
+    }
     terminal.info(`Planner project id: ${snapshot.plan.details.sourceProjectId}`);
     terminal.info(`Planner intent: ${snapshot.plan.details.projectSearch.intent}`);
+    terminal.info(`Clarifications: ${snapshot.plan.details.request.clarificationAnswers.length}`);
     terminal.info(`Assumptions: ${formatSummaryList(snapshot.plan.details.assumptions)}`);
     terminal.info(`Unknowns: ${formatSummaryList(snapshot.plan.details.unknowns)}`);
   }

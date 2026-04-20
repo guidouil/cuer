@@ -1,6 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
-  AccountGatewaySummary,
   PlannerExecutionResult,
   PlannerPlanResult,
   ProjectWorkGatewaySummary,
@@ -15,7 +14,7 @@ import type {
 import type {
   AuthMethodType,
   Plan,
-  PlannerInquiry,
+  PlannerAnswer,
   Project,
   ProviderType,
   Task,
@@ -23,14 +22,6 @@ import type {
 } from "../src/domain/index.js";
 
 type Screen = "accounts" | "planner";
-interface PlannerQuestionsResult {
-  gateway: AccountGatewaySummary;
-  inquiry: PlannerInquiry;
-  kind: "questions";
-  planner: string;
-  rawResponse: unknown;
-  workspace: WorkspaceOverview;
-}
 
 type PlannerResult = PlannerExecutionResult;
 
@@ -61,6 +52,8 @@ interface AppState {
   isSavingAccount: boolean;
   lastPlannerResult: PlannerResult | null;
   overview: WorkspaceOverview | null;
+  plannerActiveGoal: string | null;
+  plannerClarificationAnswers: Record<string, string>;
   plannerGoal: string;
   screen: Screen;
 }
@@ -81,6 +74,8 @@ const state: AppState = {
   isSavingAccount: false,
   lastPlannerResult: null,
   overview: null,
+  plannerActiveGoal: null,
+  plannerClarificationAnswers: {},
   plannerGoal: "",
   screen: "accounts",
 };
@@ -142,6 +137,7 @@ function render(): void {
   bindNavigation();
   bindAccountForm();
   bindPlannerForm();
+  bindPlannerClarificationForm();
 }
 
 function renderAccounts(): string {
@@ -453,6 +449,31 @@ function renderPlannerResult(): string {
             )
             .join("")}
         </ol>
+        <form id="planner-clarification-form" class="stack-form">
+          <div class="field">
+            <label for="planner-active-goal">Goal in progress</label>
+            <textarea id="planner-active-goal" disabled>${escapeHtml(state.plannerActiveGoal ?? state.plannerGoal)}</textarea>
+          </div>
+          ${state.lastPlannerResult.inquiry.questions
+            .map(
+              (question) => `
+                <div class="field">
+                  <label for="planner-answer-${escapeAttribute(question.id)}">${escapeHtml(question.question)}</label>
+                  <textarea
+                    id="planner-answer-${escapeAttribute(question.id)}"
+                    data-question-id="${escapeAttribute(question.id)}"
+                    placeholder="Answer to continue planning."
+                  >${escapeHtml(state.plannerClarificationAnswers[question.id] ?? "")}</textarea>
+                  <p class="subtle">${escapeHtml(question.why)}</p>
+                </div>
+              `,
+            )
+            .join("")}
+          <div class="form-actions">
+            <p class="subtle">Answers stay local and are sent back through the shared planner service.</p>
+            <button class="primary-button" type="submit"${state.isRunningPlanner ? " disabled" : ""}>${state.isRunningPlanner ? "Running…" : "Continue planning"}</button>
+          </div>
+        </form>
       </section>
     `;
   }
@@ -678,10 +699,69 @@ function bindPlannerForm(): void {
 
     try {
       const result = await invoke<PlannerResult>("run_planner", { goal });
-      state.lastPlannerResult = result;
-      state.overview = result.workspace;
-      state.debugPayload = result.rawResponse;
-      state.plannerGoal = "";
+      applyPlannerResult(result, goal);
+    } catch (error) {
+      state.errorMessage = normalizeError(error);
+    } finally {
+      state.isRunningPlanner = false;
+      render();
+    }
+  });
+}
+
+function bindPlannerClarificationForm(): void {
+  const form = document.querySelector<HTMLFormElement>("#planner-clarification-form");
+  if (!form) {
+    return;
+  }
+
+  for (const field of form.querySelectorAll<HTMLTextAreaElement>("[data-question-id]")) {
+    field.addEventListener("input", () => {
+      const questionId = field.dataset.questionId;
+      if (!questionId) {
+        return;
+      }
+
+      state.plannerClarificationAnswers[questionId] = field.value;
+    });
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    if (!state.lastPlannerResult || state.lastPlannerResult.kind !== "questions") {
+      return;
+    }
+
+    const goal = state.plannerActiveGoal?.trim() ?? state.plannerGoal.trim();
+    if (goal.length === 0) {
+      state.errorMessage = "Planning goal is missing.";
+      render();
+      return;
+    }
+
+    const clarificationAnswers = state.lastPlannerResult.inquiry.questions.map((question) => ({
+      answer: (state.plannerClarificationAnswers[question.id] ?? "").trim(),
+      question: question.question,
+      questionId: question.id,
+    }));
+
+    if (clarificationAnswers.some((answer) => answer.answer.length === 0)) {
+      state.errorMessage = "Answer every clarification question before continuing.";
+      render();
+      return;
+    }
+
+    state.errorMessage = null;
+    state.isRunningPlanner = true;
+    render();
+
+    try {
+      const result = await invoke<PlannerResult>("run_planner", {
+        clarification_answers: clarificationAnswers,
+        goal,
+      });
+      applyPlannerResult(result, goal);
     } catch (error) {
       state.errorMessage = normalizeError(error);
     } finally {
@@ -717,6 +797,37 @@ function ensureAccountFormDefaults(providers: ProviderCatalogItem[]): void {
   if (state.accountForm.baseUrl.trim().length === 0 && provider.defaultBaseUrl) {
     state.accountForm.baseUrl = provider.defaultBaseUrl;
   }
+}
+
+function applyPlannerResult(result: PlannerResult, goal: string): void {
+  state.lastPlannerResult = result;
+  state.overview = result.workspace;
+  state.debugPayload = result.rawResponse;
+
+  if (result.kind === "questions") {
+    state.plannerActiveGoal = goal;
+    state.plannerGoal = goal;
+    state.plannerClarificationAnswers = buildClarificationAnswerState(
+      result.inquiry.questions.map((question) => question.id),
+      state.plannerClarificationAnswers,
+    );
+    return;
+  }
+
+  state.plannerActiveGoal = null;
+  state.plannerClarificationAnswers = {};
+  state.plannerGoal = "";
+}
+
+function buildClarificationAnswerState(
+  questionIds: string[],
+  current: Record<string, string>,
+): Record<string, string> {
+  const next: Record<string, string> = {};
+  for (const questionId of questionIds) {
+    next[questionId] = current[questionId] ?? "";
+  }
+  return next;
 }
 
 function selectedProvider(): ProviderCatalogItem | null {

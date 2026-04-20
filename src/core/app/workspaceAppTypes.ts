@@ -111,7 +111,7 @@ export interface PlannerInquiryResult {
   inquiry: PlannerInquiry;
   kind: "questions";
   planner: string;
-  rawResponse: ExternalPlannerResponse;
+  rawResponse: ExternalPlannerResponse | PlannerInquiry;
   workspace: WorkspaceOverview;
 }
 

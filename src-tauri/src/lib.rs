@@ -10,8 +10,15 @@ fn get_workspace_overview(app: tauri::AppHandle) -> Result<Value, String> {
 }
 
 #[tauri::command]
-fn run_planner(app: tauri::AppHandle, goal: String) -> Result<Value, String> {
-    run_bridge(&app, "run-planner", vec![goal])
+fn run_planner(
+    app: tauri::AppHandle,
+    goal: String,
+    clarification_answers: Option<Value>,
+) -> Result<Value, String> {
+    let answers_json = clarification_answers
+        .unwrap_or_else(|| Value::Array(Vec::new()))
+        .to_string();
+    run_bridge(&app, "run-planner", vec![goal, answers_json])
 }
 
 #[tauri::command]

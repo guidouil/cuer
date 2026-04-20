@@ -14,6 +14,18 @@ export interface TaskSearchHints extends JsonObject {
   intent: string;
 }
 
+export interface PlannerAnswer extends JsonObject {
+  answer: string;
+  question: string;
+  questionId: string;
+}
+
+export interface PlanningRequestContext extends JsonObject {
+  clarificationAnswers: PlannerAnswer[];
+  originalGoal: string;
+  resolvedGoal: string;
+}
+
 export interface PlanQualityChecks extends JsonObject {
   allAtomic: boolean;
   allTestable: boolean;
@@ -25,6 +37,7 @@ export interface PlanDetails extends JsonObject {
   assumptions: string[];
   projectSearch: ProjectSearchHints;
   qualityChecks: PlanQualityChecks;
+  request: PlanningRequestContext;
   sourceProjectId: string;
   unknowns: string[];
 }
