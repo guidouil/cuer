@@ -14,7 +14,7 @@ V0 provides:
 - local workspace bootstrap in `.cuer/`
 - a local SQLite database powered by `better-sqlite3`
 - a shared Account Manager domain for providers, auth methods, credentials, access policies, usage events, and cost records
-- a dedicated local secret storage abstraction under `.cuer/secrets/`
+- an OS keychain-backed secret storage abstraction with legacy migration from `.cuer/secrets/`
 - explicit domain entities for projects, plans, tasks, task dependencies, and events
 - account-gated planner and run flows that resolve provider access through the shared core
 - a simple isolated planner that generates an honest initial task graph
@@ -34,6 +34,7 @@ V0 provides:
 - Node.js 20 or newer
 - npm
 - macOS or Linux
+- on Linux, `secret-tool` from `libsecret` for account secrets
 
 ## Installation
 
@@ -154,7 +155,8 @@ Added:
 - `src/core/accounts/*` for provider catalog, account registration, access resolution, and usage summaries
 - `src/core/app/workspaceAppService.ts` as the shared application service for CLI and desktop
 - `src/desktop/bridgeCli.ts` as a thin Node bridge that exposes JSON to the Tauri shell
-- `src/filesystem/secretStore.ts` as the current secret storage implementation behind the secret-store abstraction
+- `src/integrations/secrets/osKeychainSecretStore.ts` as the default OS keychain-backed secret storage implementation
+- `src/filesystem/secretStore.ts` as the legacy filesystem-backed secret store used for compatibility and migration
 - `src-tauri/` as the native desktop entrypoint
 - `desktop/` as the minimal frontend UI
 
@@ -178,7 +180,7 @@ After `cuer init`, the current directory receives:
 
 - `cuer.db`: local state store
 - `config.json`: workspace-local configuration
-- `secrets/`: dedicated secret payload storage behind the secret-store abstraction
+- `secrets/`: legacy secret payload storage retained for compatibility and keychain migration
 - `plans/`: inspectable plan snapshots written as JSON
 - `artifacts/`: execution artifacts and future run outputs
 - `logs/`: reserved for future execution logs
@@ -381,7 +383,6 @@ If the response mode is `ask_user`, Cuer prints the blocking questions and recor
 
 ## Limits of V0
 
-- the current secret store is a dedicated local abstraction, not OS keychain integration yet
 - provider-backed usage and cost writes are scaffolded, but the current local planner and manual runner do not emit full real provider accounting yet
 - the planner is heuristic and deliberately simple even though it can now stop for clarification before task decomposition
 - the current runner is a manual external handoff, not a live agent execution backend
@@ -391,7 +392,6 @@ If the response mode is `ask_user`, Cuer prints the blocking questions and recor
 
 ## Next steps
 
-- add keychain-backed secret storage implementations behind the existing abstraction
 - record real provider usage and cost events from provider-backed planner and execution adapters
 - add explicit account selection and richer policy controls on top of the current default gateway
 - add richer runner adapters for external coding agents

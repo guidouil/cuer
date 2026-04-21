@@ -3,7 +3,7 @@ import type { Project } from "../../domain/index.js";
 import { CuerDatabase } from "../../db/database.js";
 import { createRepositories, type RepositorySet } from "../../db/repositories/index.js";
 import { createWorkspaceConfig, normalizeWorkspaceConfig } from "../../filesystem/config.js";
-import { FilesystemSecretStore } from "../../filesystem/secretStore.js";
+import { createSecretStore } from "../../integrations/secrets/osKeychainSecretStore.js";
 import {
   ensureWorkspaceDirectories,
   inferProjectName,
@@ -69,7 +69,7 @@ export class WorkspaceContext {
     }
 
     const database = new CuerDatabase(paths.dbPath);
-    const secretStore = new FilesystemSecretStore(paths.secretsDir);
+    const secretStore = createSecretStore(paths);
     return new WorkspaceContext(paths, config, database, secretStore);
   }
 
