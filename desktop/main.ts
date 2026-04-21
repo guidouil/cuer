@@ -120,7 +120,7 @@ function render(): void {
         <div class="brand">
           <img class="brand-mark" src="./assets/cuer-icon.png" alt="Cuer" />
           <div>
-            <p class="eyebrow">Local-first account foundation</p>
+            <p class="eyebrow">Local-first Agents Orchestrator</p>
             <h1>Cuer</h1>
           </div>
         </div>
