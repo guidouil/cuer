@@ -3,6 +3,7 @@ use std::process::Command;
 
 use serde_json::Value;
 use tauri::path::BaseDirectory;
+use tauri::Manager;
 
 #[tauri::command]
 fn get_workspace_overview(app: tauri::AppHandle) -> Result<Value, String> {
@@ -49,7 +50,11 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
-fn run_bridge(app: &tauri::AppHandle, command_name: &str, extra_args: Vec<String>) -> Result<Value, String> {
+fn run_bridge(
+    app: &tauri::AppHandle,
+    command_name: &str,
+    extra_args: Vec<String>,
+) -> Result<Value, String> {
     let root_path = workspace_root()?;
     let bridge_path = resolve_bridge_path(app, &root_path)?;
     if !bridge_path.exists() {
@@ -65,7 +70,12 @@ fn run_bridge(app: &tauri::AppHandle, command_name: &str, extra_args: Vec<String
         .arg(root_path.to_string_lossy().to_string())
         .args(extra_args)
         .output()
-        .map_err(|error| format!("Failed to start desktop bridge at {}: {error}", bridge_path.display()))?;
+        .map_err(|error| {
+            format!(
+                "Failed to start desktop bridge at {}: {error}",
+                bridge_path.display()
+            )
+        })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
