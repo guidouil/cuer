@@ -69,7 +69,7 @@ export class WorkspaceContext {
     }
 
     const database = new CuerDatabase(paths.dbPath);
-    const secretStore = createSecretStore(paths);
+    const secretStore = createSecretStore();
     return new WorkspaceContext(paths, config, database, secretStore);
   }
 

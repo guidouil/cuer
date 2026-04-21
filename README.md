@@ -14,7 +14,7 @@ V0 provides:
 - local workspace bootstrap in `.cuer/`
 - a local SQLite database powered by `better-sqlite3`
 - a shared Account Manager domain for providers, auth methods, credentials, access policies, usage events, and cost records
-- an OS keychain-backed secret storage abstraction with legacy migration from `.cuer/secrets/`
+- an OS keychain-backed secret storage abstraction
 - explicit domain entities for projects, plans, tasks, task dependencies, and events
 - account-gated planner and run flows that resolve provider access through the shared core
 - a simple isolated planner that generates an honest initial task graph
@@ -155,8 +155,7 @@ Added:
 - `src/core/accounts/*` for provider catalog, account registration, access resolution, and usage summaries
 - `src/core/app/workspaceAppService.ts` as the shared application service for CLI and desktop
 - `src/desktop/bridgeCli.ts` as a thin Node bridge that exposes JSON to the Tauri shell
-- `src/integrations/secrets/osKeychainSecretStore.ts` as the default OS keychain-backed secret storage implementation
-- `src/filesystem/secretStore.ts` as the legacy filesystem-backed secret store used for compatibility and migration
+- `src/integrations/secrets/osKeychainSecretStore.ts` as the OS keychain-backed secret storage implementation
 - `src-tauri/` as the native desktop entrypoint
 - `desktop/` as the minimal frontend UI
 
@@ -170,7 +169,6 @@ After `cuer init`, the current directory receives:
 .cuer/
   cuer.db
   config.json
-  secrets/
   plans/
   artifacts/
   logs/
@@ -180,7 +178,6 @@ After `cuer init`, the current directory receives:
 
 - `cuer.db`: local state store
 - `config.json`: workspace-local configuration
-- `secrets/`: legacy secret payload storage retained for compatibility and keychain migration
 - `plans/`: inspectable plan snapshots written as JSON
 - `artifacts/`: execution artifacts and future run outputs
 - `logs/`: reserved for future execution logs
@@ -352,8 +349,6 @@ Task types:
 - `test`
 - `documentation`
 - `deployment`
-
-Legacy stored plans may still display older task types such as `code`, `docs`, or `review`.
 
 ## Structured planner JSON
 

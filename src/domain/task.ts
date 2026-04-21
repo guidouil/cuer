@@ -8,9 +8,6 @@ export const TASK_TYPES = [
   "test",
   "documentation",
   "deployment",
-  "code",
-  "docs",
-  "review",
 ] as const;
 
 export type TaskStatus = (typeof TASK_STATUSES)[number];

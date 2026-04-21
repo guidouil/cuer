@@ -1,16 +1,10 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import test, { type TestContext } from "node:test";
+import test from "node:test";
 
-import type { SecretPayload, SecretStore } from "../src/core/accounts/secretStore.js";
-import { FilesystemSecretStore } from "../src/filesystem/secretStore.js";
 import {
   LinuxSecretServiceSecretStore,
   MacOsKeychainSecretStore,
-  MigratingSecretStore,
+  createSecretStore,
   type CommandInvocation,
   type CommandResult,
   type CommandRunner,
@@ -38,69 +32,12 @@ test("Linux secret service store persists payloads through the secret-tool contr
   assert.equal(store.get("secret_primary"), null);
 });
 
-test("migrating secret store upgrades legacy filesystem secrets after a successful read", async (t) => {
-  const secretsDir = await createTempDir(t);
-  const legacy = new FilesystemSecretStore(secretsDir);
-  const primary = new InMemorySecretStore();
-  const store = new MigratingSecretStore(primary, legacy);
-  const payload = { apiKey: "sk-legacy-1234" };
-  const secretRef = "secret_legacy";
-
-  legacy.put(secretRef, payload);
-
-  assert.deepEqual(store.get(secretRef), payload);
-  assert.deepEqual(primary.get(secretRef), payload);
-  assert.equal(existsSync(join(secretsDir, `${secretRef}.json`)), false);
+test("secret store creation fails fast on unsupported platforms", () => {
+  assert.throws(
+    () => createSecretStore({ platform: "win32" }),
+    /only supported on macOS and Linux/i,
+  );
 });
-
-test("migrating secret store still reads legacy secrets when the primary backend is unavailable", async (t) => {
-  const secretsDir = await createTempDir(t);
-  const legacy = new FilesystemSecretStore(secretsDir);
-  const store = new MigratingSecretStore(new UnavailableSecretStore(), legacy);
-  const payload = { apiKey: "sk-legacy-1234" };
-
-  legacy.put("secret_legacy", payload);
-
-  assert.deepEqual(store.get("secret_legacy"), payload);
-});
-
-class InMemorySecretStore implements SecretStore {
-  private readonly values = new Map<string, SecretPayload>();
-
-  put(secretRef: string, payload: SecretPayload): void {
-    this.values.set(secretRef, payload);
-  }
-
-  get(secretRef: string): SecretPayload | null {
-    return this.values.get(secretRef) ?? null;
-  }
-
-  delete(secretRef: string): void {
-    this.values.delete(secretRef);
-  }
-}
-
-class UnavailableSecretStore implements SecretStore {
-  put(): void {
-    throw new Error("OS keychain unavailable");
-  }
-
-  get(): SecretPayload | null {
-    throw new Error("OS keychain unavailable");
-  }
-
-  delete(): void {
-    throw new Error("OS keychain unavailable");
-  }
-}
-
-async function createTempDir(t: TestContext): Promise<string> {
-  const directory = await mkdtemp(join(tmpdir(), "cuer-secrets-test-"));
-  t.after(async () => {
-    await rm(directory, { recursive: true, force: true });
-  });
-  return directory;
-}
 
 function createMacOsRunner(): CommandRunner {
   const secrets = new Map<string, string>();

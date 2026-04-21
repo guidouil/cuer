@@ -16,9 +16,7 @@ export class ReviewService {
     return {
       blockedTasks: queue.blockedTaskIds.length,
       completedTasks: tasks.filter((task) => task.status === "done").length,
-      pendingValidationTasks: tasks.filter(
-        (task) => (task.type === "test" || task.type === "review") && task.status !== "done",
-      ).length,
+      pendingValidationTasks: tasks.filter((task) => task.type === "test" && task.status !== "done").length,
       totalTasks: tasks.length,
     };
   }

@@ -10,7 +10,6 @@ export interface WorkspacePaths {
   workspaceDir: string;
   dbPath: string;
   configPath: string;
-  secretsDir: string;
   plansDir: string;
   artifactsDir: string;
   logsDir: string;
@@ -26,7 +25,6 @@ export function resolveWorkspacePaths(rootPath: string): WorkspacePaths {
     workspaceDir,
     dbPath: join(workspaceDir, "cuer.db"),
     configPath: join(workspaceDir, "config.json"),
-    secretsDir: join(workspaceDir, "secrets"),
     plansDir: join(workspaceDir, "plans"),
     artifactsDir: join(workspaceDir, "artifacts"),
     logsDir: join(workspaceDir, "logs"),
@@ -41,7 +39,6 @@ export function workspaceExists(paths: WorkspacePaths): boolean {
 
 export function ensureWorkspaceDirectories(paths: WorkspacePaths): void {
   mkdirSync(paths.workspaceDir, { recursive: true });
-  mkdirSync(paths.secretsDir, { recursive: true, mode: 0o700 });
   mkdirSync(paths.plansDir, { recursive: true });
   mkdirSync(paths.artifactsDir, { recursive: true });
   mkdirSync(paths.logsDir, { recursive: true });

@@ -2,8 +2,6 @@ import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { platform as runtimePlatform } from "node:os";
 
 import type { SecretPayload, SecretStore } from "../../core/accounts/secretStore.js";
-import { FilesystemSecretStore } from "../../filesystem/secretStore.js";
-import type { WorkspacePaths } from "../../filesystem/workspace.js";
 
 const KEYCHAIN_SERVICE_NAME = "cuer";
 
@@ -27,83 +25,15 @@ export interface CreateSecretStoreOptions {
   platform?: NodeJS.Platform;
 }
 
-export function createSecretStore(paths: WorkspacePaths, options: CreateSecretStoreOptions = {}): SecretStore {
-  const legacyStore = new FilesystemSecretStore(paths.secretsDir);
+export function createSecretStore(options: CreateSecretStoreOptions = {}): SecretStore {
   const platform = options.platform ?? runtimePlatform();
-  const primaryStore = createPrimarySecretStore(platform, options.commandRunner);
-
-  if (!primaryStore) {
-    return legacyStore;
-  }
-
-  return new MigratingSecretStore(primaryStore, legacyStore);
-}
-
-export class MigratingSecretStore implements SecretStore {
-  constructor(
-    private readonly primary: SecretStore,
-    private readonly legacy: SecretStore,
-  ) {}
-
-  put(secretRef: string, payload: SecretPayload): void {
-    this.primary.put(secretRef, payload);
-
-    try {
-      this.legacy.delete(secretRef);
-    } catch {
-      // Leaving a legacy copy behind is preferable to failing a successful keychain write.
-    }
-  }
-
-  get(secretRef: string): SecretPayload | null {
-    let primaryError: Error | null = null;
-
-    try {
-      const payload = this.primary.get(secretRef);
-      if (payload) {
-        return payload;
-      }
-    } catch (error) {
-      primaryError = toError(error);
-    }
-
-    const legacyPayload = this.legacy.get(secretRef);
-    if (!legacyPayload) {
-      if (primaryError) {
-        throw primaryError;
-      }
-
-      return null;
-    }
-
-    try {
-      this.primary.put(secretRef, legacyPayload);
-      this.legacy.delete(secretRef);
-    } catch {
-      // The legacy copy remains usable even if migration cannot complete yet.
-    }
-
-    return legacyPayload;
-  }
-
-  delete(secretRef: string): void {
-    let firstError: Error | null = null;
-
-    try {
-      this.primary.delete(secretRef);
-    } catch (error) {
-      firstError = toError(error);
-    }
-
-    try {
-      this.legacy.delete(secretRef);
-    } catch (error) {
-      firstError ??= toError(error);
-    }
-
-    if (firstError) {
-      throw firstError;
-    }
+  switch (platform) {
+    case "darwin":
+      return new MacOsKeychainSecretStore(options.commandRunner);
+    case "linux":
+      return new LinuxSecretServiceSecretStore(options.commandRunner);
+    default:
+      throw new Error(`Secret storage is only supported on macOS and Linux. Current platform: "${platform}".`);
   }
 }
 
@@ -218,20 +148,6 @@ export class LinuxSecretServiceSecretStore implements SecretStore {
     }
 
     throw buildCommandError("Linux Secret Service", "delete", result);
-  }
-}
-
-function createPrimarySecretStore(
-  platform: NodeJS.Platform,
-  commandRunner?: CommandRunner,
-): SecretStore | null {
-  switch (platform) {
-    case "darwin":
-      return new MacOsKeychainSecretStore(commandRunner);
-    case "linux":
-      return new LinuxSecretServiceSecretStore(commandRunner);
-    default:
-      return null;
   }
 }
 
