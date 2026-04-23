@@ -103,7 +103,8 @@ textarea {
 
 .nav-button,
 .primary-button,
-.secondary-button {
+.secondary-button,
+.danger-button {
   border: 1px solid transparent;
   border-radius: 6px;
   padding: 0.7rem 0.95rem;
@@ -252,6 +253,32 @@ textarea {
   color: #1d2722;
 }
 
+.danger-button {
+  background: #fff4f3;
+  border-color: #e3a6a1;
+  color: #8c2f27;
+}
+
+.danger-button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0.55rem;
+}
+
+.icon-trash {
+  width: 1.1rem;
+  height: 1.1rem;
+  fill: currentColor;
+}
+
 .pill {
   display: inline-flex;
   align-items: center;
@@ -295,6 +322,28 @@ textarea {
   border-radius: 6px;
   background: #fdecef;
   color: #7b2533;
+}
+
+.compact-error {
+  margin: 0;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: rgba(17, 21, 20, 0.58);
+}
+
+.dialog-panel {
+  width: min(100%, 34rem);
+  padding: 1.25rem;
+  border: 1px solid #d0d7d2;
+  border-radius: 10px;
+  background: #f8faf8;
+  box-shadow: 0 24px 80px rgba(17, 21, 20, 0.24);
 }
 
 @media (max-width: 900px) {

@@ -105,6 +105,17 @@ export class AccountRepository {
 
     return rows.map(mapAccount);
   }
+
+  delete(accountId: string): void {
+    this.db
+      .prepare(
+        `
+          DELETE FROM accounts
+          WHERE id = ?
+        `,
+      )
+      .run(accountId);
+  }
 }
 
 function mapAccount(row: AccountRow): Account {

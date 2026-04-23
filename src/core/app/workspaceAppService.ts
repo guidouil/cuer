@@ -18,6 +18,11 @@ import {
 import { createId } from "../../utils/id.js";
 import { nowIso } from "../../utils/time.js";
 import { resolveWorkspacePaths, workspaceExists } from "../../filesystem/workspace.js";
+import {
+  OPENAI_OAUTH_ENDPOINTS,
+  createOpenAiOauthSession,
+  exchangeOpenAiOauthCode,
+} from "../../integrations/openai/openAiOauth.js";
 import type {
   AccountGatewaySummary,
   CreateProviderAccountResult,
@@ -54,6 +59,32 @@ export interface CreateProviderAccountInput extends RegisterProviderAccountInput
   rootPath: string;
 }
 
+export interface CreateOpenAiOauthSessionInput {
+  redirectUri: string;
+}
+
+export interface OpenAiOauthSessionResult {
+  authorizeUrl: string;
+  codeVerifier: string;
+  redirectUri: string;
+  state: string;
+}
+
+export interface ConnectOpenAiOauthInput {
+  authorizationCode: string;
+  baseUrl?: string | null;
+  defaultModel?: string | null;
+  codeVerifier: string;
+  name: string;
+  redirectUri: string;
+  rootPath: string;
+}
+
+export interface DeleteProviderAccountInput {
+  accountId: string;
+  rootPath: string;
+}
+
 export class WorkspaceAppService {
   private readonly accountManager = new AccountManagerService();
 
@@ -67,6 +98,57 @@ export class WorkspaceAppService {
         account: mapAccountRecord(accountRecord),
         workspace: buildWorkspaceOverview(context, null, this.accountManager),
       };
+    } finally {
+      context.close();
+    }
+  }
+
+  createOpenAiOauthSession(input: CreateOpenAiOauthSessionInput): OpenAiOauthSessionResult {
+    return createOpenAiOauthSession(input.redirectUri);
+  }
+
+  async connectOpenAiOauth(input: ConnectOpenAiOauthInput): Promise<CreateProviderAccountResult> {
+    const tokenSet = await exchangeOpenAiOauthCode({
+      authorizationCode: input.authorizationCode,
+      codeVerifier: input.codeVerifier,
+      redirectUri: input.redirectUri,
+    });
+    const context = WorkspaceContext.open(input.rootPath, { autoInitialize: true });
+
+    try {
+      const accountRecord = this.accountManager.registerProviderAccount(context, {
+        authMethodType: "oauth",
+        authMethodConfig: {
+          authorizationEndpoint: OPENAI_OAUTH_ENDPOINTS.authorizationUrl,
+          clientId: OPENAI_OAUTH_ENDPOINTS.clientId,
+          grantType: "authorization_code",
+          pkce: "S256",
+          tokenEndpoint: OPENAI_OAUTH_ENDPOINTS.tokenUrl,
+        },
+        credentialMetadata: buildOpenAiOauthCredentialMetadata(tokenSet),
+        ...(input.baseUrl ? { baseUrl: input.baseUrl } : {}),
+        ...(input.defaultModel ? { defaultModel: input.defaultModel } : {}),
+        name: input.name,
+        providerType: "openai",
+        secretHint: "OAuth connected",
+        secretPayload: buildOpenAiOauthSecretPayload(tokenSet),
+      });
+
+      return {
+        account: mapAccountRecord(accountRecord),
+        workspace: buildWorkspaceOverview(context, null, this.accountManager),
+      };
+    } finally {
+      context.close();
+    }
+  }
+
+  deleteProviderAccount(input: DeleteProviderAccountInput): WorkspaceOverview {
+    const context = WorkspaceContext.open(input.rootPath, { autoInitialize: true });
+
+    try {
+      this.accountManager.deleteProviderAccount(context, input.accountId);
+      return buildWorkspaceOverview(context, null, this.accountManager);
     } finally {
       context.close();
     }
@@ -318,6 +400,32 @@ function mapUsageSummary(summary: UsageSummary): UsageSummaryView {
     lastRecordedAt: summary.lastRecordedAt,
     totalCost: summary.totalCost,
     totalEvents: summary.totalEvents,
+  };
+}
+
+function buildOpenAiOauthCredentialMetadata(tokenSet: {
+  expiresAt: string | null;
+  scope: string | null;
+  tokenType: string;
+}): Exclude<RegisterProviderAccountInput["credentialMetadata"], undefined> {
+  return {
+    ...(tokenSet.expiresAt ? { expiresAt: tokenSet.expiresAt } : {}),
+    ...(tokenSet.scope ? { scope: tokenSet.scope } : {}),
+    tokenType: tokenSet.tokenType,
+  };
+}
+
+function buildOpenAiOauthSecretPayload(tokenSet: {
+  accessToken: string;
+  idToken: string | null;
+  refreshToken: string | null;
+  tokenType: string;
+}): Exclude<RegisterProviderAccountInput["secretPayload"], undefined> {
+  return {
+    accessToken: tokenSet.accessToken,
+    ...(tokenSet.idToken ? { idToken: tokenSet.idToken } : {}),
+    ...(tokenSet.refreshToken ? { refreshToken: tokenSet.refreshToken } : {}),
+    tokenType: tokenSet.tokenType,
   };
 }
 

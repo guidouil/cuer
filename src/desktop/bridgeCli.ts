@@ -50,6 +50,81 @@ async function main(): Promise<void> {
         );
         return;
       }
+      case "create-openai-oauth-session": {
+        const payloadJson = args[0]?.trim();
+        if (!payloadJson) {
+          throw new Error("A JSON payload is required for create-openai-oauth-session.");
+        }
+
+        const payload = JSON.parse(payloadJson) as Partial<{
+          redirectUri: string;
+        }>;
+
+        if (!payload.redirectUri) {
+          throw new Error("OpenAI OAuth session payload is incomplete.");
+        }
+
+        writeJson(
+          workspaceAppService.createOpenAiOauthSession({
+            redirectUri: payload.redirectUri,
+          }),
+        );
+        return;
+      }
+      case "connect-openai-oauth": {
+        const payloadJson = args[0]?.trim();
+        if (!payloadJson) {
+          throw new Error("A JSON payload is required for connect-openai-oauth.");
+        }
+
+        const payload = JSON.parse(payloadJson) as Partial<{
+          authorizationCode: string;
+          baseUrl: string | null;
+          codeVerifier: string;
+          defaultModel: string | null;
+          name: string;
+          redirectUri: string;
+        }>;
+
+        if (!payload.authorizationCode || !payload.codeVerifier || !payload.name || !payload.redirectUri) {
+          throw new Error("OpenAI OAuth connection payload is incomplete.");
+        }
+
+        writeJson(
+          await workspaceAppService.connectOpenAiOauth({
+            authorizationCode: payload.authorizationCode,
+            codeVerifier: payload.codeVerifier,
+            name: payload.name,
+            redirectUri: payload.redirectUri,
+            rootPath,
+            ...(payload.baseUrl ? { baseUrl: payload.baseUrl } : {}),
+            ...(payload.defaultModel ? { defaultModel: payload.defaultModel } : {}),
+          }),
+        );
+        return;
+      }
+      case "delete-provider-account": {
+        const payloadJson = args[0]?.trim();
+        if (!payloadJson) {
+          throw new Error("A JSON payload is required for delete-provider-account.");
+        }
+
+        const payload = JSON.parse(payloadJson) as Partial<{
+          accountId: string;
+        }>;
+
+        if (!payload.accountId) {
+          throw new Error("Provider account deletion payload is incomplete.");
+        }
+
+        writeJson(
+          workspaceAppService.deleteProviderAccount({
+            accountId: payload.accountId,
+            rootPath,
+          }),
+        );
+        return;
+      }
       case "run-planner": {
         const goal = args[0]?.trim() ?? "";
         if (goal.length === 0) {

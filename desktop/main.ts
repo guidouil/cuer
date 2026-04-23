@@ -35,6 +35,12 @@ interface CreateProviderAccountPayload {
   secretValue?: string | null;
 }
 
+interface ConnectOpenAiOauthPayload {
+  baseUrl?: string | null;
+  defaultModel?: string | null;
+  name: string;
+}
+
 interface AccountFormState {
   authMethodType: AuthMethodType;
   baseUrl: string;
@@ -44,8 +50,15 @@ interface AccountFormState {
   secretValue: string;
 }
 
+interface DeleteAccountDialogState {
+  accountId: string;
+  accountName: string;
+}
+
 interface AppState {
   accountForm: AccountFormState;
+  accountPendingDeletion: DeleteAccountDialogState | null;
+  deletingAccountId: string | null;
   debugPayload: unknown;
   errorMessage: string | null;
   isLoadingOverview: boolean;
@@ -71,6 +84,8 @@ const state: AppState = {
     providerType: "openai",
     secretValue: "",
   },
+  accountPendingDeletion: null,
+  deletingAccountId: null,
   debugPayload: null,
   errorMessage: null,
   isLoadingOverview: true,
@@ -138,9 +153,11 @@ function render(): void {
         ${renderDebug()}
       </main>
     </div>
+    ${renderDeleteAccountDialog()}
   `;
 
   bindNavigation();
+  bindAccountActions();
   bindPendingPlannerActions();
   bindAccountForm();
   bindPlannerForm();
@@ -217,7 +234,21 @@ function renderAccounts(): string {
                     <li class="item-card">
                       <div class="item-title-row">
                         <strong>${escapeHtml(account.name)}</strong>
-                        <span class="pill">${escapeHtml(account.providerLabel)}</span>
+                        <div class="meta-row">
+                          <span class="pill">${escapeHtml(account.providerLabel)}</span>
+                          <button
+                            class="danger-button icon-button"
+                            type="button"
+                            data-action="prompt-delete-account"
+                            data-account-id="${escapeAttribute(account.id)}"
+                            data-account-name="${escapeAttribute(account.name)}"
+                            aria-label="${escapeAttribute(`Delete ${account.name}`)}"
+                            title="Delete configuration"
+                            ${state.deletingAccountId === account.id ? " disabled" : ""}
+                          >
+                            ${renderTrashIcon()}
+                          </button>
+                        </div>
                       </div>
                       <div class="meta-row">
                         <span>Auth ${escapeHtml(account.authMethodType ?? "unconfigured")}</span>
@@ -291,13 +322,24 @@ function renderAccounts(): string {
             <input id="default-model" name="defaultModel" value="${escapeAttribute(state.accountForm.defaultModel)}" placeholder="gpt-4.1-mini" />
           </div>
         </div>
-        <div class="field">
-          <label for="secret-value">${escapeHtml(secretFieldLabel())}</label>
-          <input id="secret-value" name="secretValue" type="password" value="${escapeAttribute(state.accountForm.secretValue)}" placeholder="Stored locally through the secret abstraction" />
-        </div>
+        ${
+          shouldUseOpenAiBrowserOauth()
+            ? `
+              <div class="field">
+                <label>OpenAI OAuth</label>
+                <p class="subtle">Connects in your default browser, returns to Cuer, and stores the tokens locally through the OS secret store without showing them in the UI.</p>
+              </div>
+            `
+            : `
+              <div class="field">
+                <label for="secret-value">${escapeHtml(secretFieldLabel())}</label>
+                <input id="secret-value" name="secretValue" type="password" value="${escapeAttribute(state.accountForm.secretValue)}" placeholder="Stored locally through the secret abstraction" />
+              </div>
+            `
+        }
         <div class="form-actions">
-          <p class="subtle">The desktop shell only receives redacted credential hints after save.</p>
-          <button class="primary-button" type="submit"${state.isSavingAccount ? " disabled" : ""}>${state.isSavingAccount ? "Saving…" : "Save account"}</button>
+          <p class="subtle">${escapeHtml(accountFormActionNote())}</p>
+          <button class="primary-button" type="submit"${state.isSavingAccount ? " disabled" : ""}>${escapeHtml(accountFormActionLabel())}</button>
         </div>
       </form>
     </section>
@@ -352,6 +394,42 @@ function renderAccounts(): string {
           `
       }
     </section>
+  `;
+}
+
+function renderDeleteAccountDialog(): string {
+  if (!state.accountPendingDeletion) {
+    return "";
+  }
+
+  const isDeleting = state.deletingAccountId === state.accountPendingDeletion.accountId;
+
+  return `
+    <div class="modal-backdrop">
+      <section
+        class="dialog-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-account-dialog-title"
+      >
+        <div class="section-header">
+          <div>
+            <p class="eyebrow">Delete Configuration</p>
+            <h3 id="delete-account-dialog-title">Remove ${escapeHtml(state.accountPendingDeletion.accountName)}?</h3>
+          </div>
+        </div>
+        <p class="subtle">This will remove the saved account configuration, delete any stored secret from the OS keychain, and clear the related local account records.</p>
+        ${
+          state.errorMessage
+            ? `<section class="error-banner compact-error"><strong>Delete failed.</strong><span>${escapeHtml(state.errorMessage)}</span></section>`
+            : ""
+        }
+        <div class="form-actions">
+          <button class="secondary-button" type="button" data-action="cancel-delete-account"${isDeleting ? " disabled" : ""}>Cancel</button>
+          <button class="danger-button" type="button" data-action="confirm-delete-account"${isDeleting ? " disabled" : ""}>${isDeleting ? "Deleting…" : "Delete configuration"}</button>
+        </div>
+      </section>
+    </div>
   `;
 }
 
@@ -649,6 +727,61 @@ function bindNavigation(): void {
   }
 }
 
+function bindAccountActions(): void {
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-action="prompt-delete-account"]')) {
+    button.addEventListener("click", () => {
+      const accountId = button.dataset.accountId;
+      const accountName = button.dataset.accountName ?? "this account";
+      if (!accountId) {
+        return;
+      }
+
+      state.errorMessage = null;
+      state.accountPendingDeletion = {
+        accountId,
+        accountName,
+      };
+      render();
+    });
+  }
+
+  const cancelButton = document.querySelector<HTMLButtonElement>('[data-action="cancel-delete-account"]');
+  cancelButton?.addEventListener("click", () => {
+    state.accountPendingDeletion = null;
+    state.errorMessage = null;
+    render();
+  });
+
+  const confirmButton = document.querySelector<HTMLButtonElement>('[data-action="confirm-delete-account"]');
+  confirmButton?.addEventListener("click", async () => {
+    const pendingDeletion = state.accountPendingDeletion;
+    if (!pendingDeletion) {
+      return;
+    }
+
+    state.errorMessage = null;
+    state.deletingAccountId = pendingDeletion.accountId;
+    render();
+
+    try {
+      const overview = await invoke<WorkspaceOverview>("delete_provider_account", {
+        payload: {
+          accountId: pendingDeletion.accountId,
+        },
+      });
+
+      applyOverviewState(overview);
+      state.accountPendingDeletion = null;
+      state.debugPayload = overview;
+    } catch (error) {
+      state.errorMessage = normalizeError(error);
+    } finally {
+      state.deletingAccountId = null;
+      render();
+    }
+  });
+}
+
 function bindPendingPlannerActions(): void {
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-action="resume-pending"]')) {
     button.addEventListener("click", () => {
@@ -714,24 +847,25 @@ function bindAccountForm(): void {
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const usesBrowserOauth = shouldUseOpenAiBrowserOauth();
     state.errorMessage = null;
     state.isSavingAccount = true;
     render();
 
     try {
-      const payload: CreateProviderAccountPayload = {
-        authMethodType: state.accountForm.authMethodType,
-        name: state.accountForm.name.trim(),
-        providerType: state.accountForm.providerType,
-        ...(state.accountForm.baseUrl.trim() ? { baseUrl: state.accountForm.baseUrl.trim() } : {}),
-        ...(state.accountForm.defaultModel.trim() ? { defaultModel: state.accountForm.defaultModel.trim() } : {}),
-        ...(state.accountForm.secretValue.trim() ? { secretValue: state.accountForm.secretValue.trim() } : {}),
-      };
-
-      const result = await invoke<{ account: ProviderAccountSummary; workspace: WorkspaceOverview }>(
-        "create_provider_account",
-        { payload },
-      );
+      const result = usesBrowserOauth
+        ? await invoke<{ account: ProviderAccountSummary; workspace: WorkspaceOverview }>(
+            "connect_openai_oauth",
+            {
+              payload: buildOpenAiOauthPayload(),
+            },
+          )
+        : await invoke<{ account: ProviderAccountSummary; workspace: WorkspaceOverview }>(
+            "create_provider_account",
+            {
+              payload: buildCreateProviderAccountPayload(),
+            },
+          );
 
       applyOverviewState(result.workspace);
       state.debugPayload = result;
@@ -1066,6 +1200,45 @@ function secretFieldLabel(): string {
   }
 }
 
+function shouldUseOpenAiBrowserOauth(): boolean {
+  return state.accountForm.providerType === "openai" && state.accountForm.authMethodType === "oauth";
+}
+
+function accountFormActionLabel(): string {
+  if (state.isSavingAccount) {
+    return shouldUseOpenAiBrowserOauth() ? "Connecting…" : "Saving…";
+  }
+
+  return shouldUseOpenAiBrowserOauth() ? "Connect in browser" : "Save account";
+}
+
+function accountFormActionNote(): string {
+  if (shouldUseOpenAiBrowserOauth()) {
+    return "The desktop shell gets back only a redacted connected status after the browser flow finishes.";
+  }
+
+  return "The desktop shell only receives redacted credential hints after save.";
+}
+
+function buildCreateProviderAccountPayload(): CreateProviderAccountPayload {
+  return {
+    authMethodType: state.accountForm.authMethodType,
+    name: state.accountForm.name.trim(),
+    providerType: state.accountForm.providerType,
+    ...(state.accountForm.baseUrl.trim() ? { baseUrl: state.accountForm.baseUrl.trim() } : {}),
+    ...(state.accountForm.defaultModel.trim() ? { defaultModel: state.accountForm.defaultModel.trim() } : {}),
+    ...(state.accountForm.secretValue.trim() ? { secretValue: state.accountForm.secretValue.trim() } : {}),
+  };
+}
+
+function buildOpenAiOauthPayload(): ConnectOpenAiOauthPayload {
+  return {
+    name: state.accountForm.name.trim(),
+    ...(state.accountForm.baseUrl.trim() ? { baseUrl: state.accountForm.baseUrl.trim() } : {}),
+    ...(state.accountForm.defaultModel.trim() ? { defaultModel: state.accountForm.defaultModel.trim() } : {}),
+  };
+}
+
 function formatAuthMethod(authMethod: AuthMethodType): string {
   switch (authMethod) {
     case "api_key":
@@ -1130,4 +1303,12 @@ function escapeHtml(value: string): string {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function renderTrashIcon(): string {
+  return `
+    <svg class="icon-trash" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm1 7h2v7h-2v-7Zm4 0h2v7h-2v-7ZM7 10h2v7H7v-7Zm-1 11h12l1-13H5l1 13Z" />
+    </svg>
+  `;
 }

@@ -20,10 +20,14 @@ import type { WorkspaceContext } from "../context/workspaceContext.js";
 
 export interface RegisterProviderAccountInput {
   authMethodType: AuthMethodType;
+  authMethodConfig?: Account["config"];
   baseUrl?: string | null;
+  credentialMetadata?: Credential["metadata"];
   defaultModel?: string | null;
   name: string;
   providerType: ProviderType;
+  secretHint?: string | null;
+  secretPayload?: SecretPayload | null;
   secretValue?: string | null;
 }
 
@@ -102,9 +106,14 @@ export class AccountManagerService {
     const provider = this.requireProvider(input.providerType);
     const name = input.name.trim();
     const authMethodType = input.authMethodType;
+    const authMethodConfig = input.authMethodConfig ?? null;
     const baseUrl = normalizeOptionalText(input.baseUrl);
+    const credentialMetadata = input.credentialMetadata ?? null;
     const defaultModel = normalizeOptionalText(input.defaultModel);
+    const secretHint = normalizeOptionalText(input.secretHint);
+    const secretPayload = input.secretPayload ?? null;
     const secretValue = normalizeOptionalText(input.secretValue);
+    const hasSecretMaterial = secretPayload !== null || secretValue !== null;
 
     if (name.length === 0) {
       throw new Error("Account name is required.");
@@ -118,16 +127,16 @@ export class AccountManagerService {
       throw new Error(`${provider.label} requires an API base URL.`);
     }
 
-    if (authMethodType === "api_key" && !secretValue) {
+    if (authMethodType === "api_key" && !hasSecretMaterial) {
       throw new Error("An API key is required for the selected auth method.");
     }
 
-    const credentialStatus = secretValue || !authMethodRequiresSecret(authMethodType) ? "configured" : "pending";
+    const credentialStatus = hasSecretMaterial || !authMethodRequiresSecret(authMethodType) ? "configured" : "pending";
     const timestamp = nowIso();
     const accountId = createId("account");
     const authMethodId = createId("auth");
     const credentialId = createId("cred");
-    const secretRef = secretValue ? createId("secret") : null;
+    const secretRef = hasSecretMaterial ? createId("secret") : null;
 
     const account: Account = {
       id: accountId,
@@ -145,7 +154,7 @@ export class AccountManagerService {
       accountId,
       type: authMethodType,
       label: buildAuthMethodLabel(authMethodType),
-      config: null,
+      config: authMethodConfig,
       createdAt: timestamp,
       updatedAt: timestamp,
     };
@@ -154,9 +163,13 @@ export class AccountManagerService {
       accountId,
       authMethodId,
       secretRef,
-      secretHint: secretValue ? redactSecret(secretValue) : null,
+      secretHint: buildSecretHint(authMethodType, {
+        secretHint,
+        secretPayload,
+        secretValue,
+      }),
       status: credentialStatus,
-      metadata: null,
+      metadata: credentialMetadata,
       createdAt: timestamp,
       updatedAt: timestamp,
     };
@@ -177,8 +190,8 @@ export class AccountManagerService {
       context.repositories.credentials.create(credential);
       context.repositories.accessPolicies.create(accessPolicy);
 
-      if (secretRef && secretValue) {
-        context.secretStore.put(secretRef, buildSecretPayload(authMethodType, secretValue));
+      if (secretRef) {
+        context.secretStore.put(secretRef, resolveSecretPayload(authMethodType, secretPayload, secretValue));
       }
     })();
 
@@ -189,6 +202,28 @@ export class AccountManagerService {
       credential,
       provider,
     };
+  }
+
+  deleteProviderAccount(context: WorkspaceContext, accountId: string): void {
+    const normalizedAccountId = accountId.trim();
+    if (normalizedAccountId.length === 0) {
+      throw new Error("Account id is required.");
+    }
+
+    const account = context.repositories.accounts.findById(normalizedAccountId);
+    if (!account) {
+      throw new Error(`Provider account "${normalizedAccountId}" was not found.`);
+    }
+
+    const credential = context.repositories.credentials.findByAccountId(normalizedAccountId);
+
+    context.database.connection.transaction(() => {
+      if (credential?.secretRef) {
+        context.secretStore.delete(credential.secretRef);
+      }
+
+      context.repositories.accounts.delete(normalizedAccountId);
+    })();
   }
 
   requireCapability(context: WorkspaceContext, capability: AccessCapability): ResolvedAccountAccess {
@@ -387,6 +422,49 @@ function buildSecretPayload(authMethodType: AuthMethodType, secretValue: string)
     case "custom":
       return { credential: secretValue };
   }
+}
+
+function buildSecretHint(
+  authMethodType: AuthMethodType,
+  input: {
+    secretHint: string | null;
+    secretPayload: SecretPayload | null;
+    secretValue: string | null;
+  },
+): string | null {
+  if (input.secretHint) {
+    return input.secretHint;
+  }
+
+  if (!input.secretPayload && !input.secretValue) {
+    return null;
+  }
+
+  if (authMethodType === "oauth") {
+    return "OAuth connected";
+  }
+
+  if (input.secretValue) {
+    return redactSecret(input.secretValue);
+  }
+
+  return "Configured";
+}
+
+function resolveSecretPayload(
+  authMethodType: AuthMethodType,
+  secretPayload: SecretPayload | null,
+  secretValue: string | null,
+): SecretPayload {
+  if (secretPayload) {
+    return secretPayload;
+  }
+
+  if (!secretValue) {
+    throw new Error(`Secret payload is required for auth method "${authMethodType}".`);
+  }
+
+  return buildSecretPayload(authMethodType, secretValue);
 }
 
 function buildCapabilityError(capability: AccessCapability): string {
