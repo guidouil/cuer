@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
 import type { Plan, Task, TaskDependency, TaskExecutionResultArtifact } from "../domain/index.js";
@@ -15,6 +15,12 @@ export interface WorkspacePaths {
   logsDir: string;
   promptsDir: string;
   skillsDir: string;
+}
+
+export interface ClearedWorkflowFiles {
+  removedExecutionArtifactCount: number;
+  removedPlanSnapshotCount: number;
+  removedPromptCount: number;
 }
 
 export function resolveWorkspacePaths(rootPath: string): WorkspacePaths {
@@ -79,6 +85,14 @@ export function writePlanSnapshot(
   writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 }
 
+export function clearWorkflowFiles(paths: WorkspacePaths): ClearedWorkflowFiles {
+  return {
+    removedExecutionArtifactCount: resetDirectory(join(paths.artifactsDir, "execution-results")),
+    removedPlanSnapshotCount: resetDirectory(paths.plansDir),
+    removedPromptCount: resetDirectory(paths.promptsDir),
+  };
+}
+
 export function writeRunnerPrompt(
   paths: WorkspacePaths,
   payload: {
@@ -140,4 +154,34 @@ export function readTextFileIfExists(filePath: string): string | null {
 
 export function readTextFile(filePath: string): string {
   return readFileSync(filePath, "utf8");
+}
+
+function resetDirectory(directoryPath: string): number {
+  const removedFileCount = countFiles(directoryPath);
+  rmSync(directoryPath, { force: true, recursive: true });
+  mkdirSync(directoryPath, { recursive: true });
+  return removedFileCount;
+}
+
+function countFiles(directoryPath: string): number {
+  if (!existsSync(directoryPath)) {
+    return 0;
+  }
+
+  let count = 0;
+
+  for (const entry of readdirSync(directoryPath, { withFileTypes: true })) {
+    const entryPath = join(directoryPath, entry.name);
+
+    if (entry.isDirectory()) {
+      count += countFiles(entryPath);
+      continue;
+    }
+
+    if (entry.isFile()) {
+      count += 1;
+    }
+  }
+
+  return count;
 }

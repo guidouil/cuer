@@ -32,6 +32,7 @@ async function main() {
   mkdirSync(buildRoot, { recursive: true });
 
   await buildBridgeBundle();
+  cpSync(join(repoRoot, "prompts"), join(backendRoot, "prompts"), { recursive: true });
   copyRuntimeDependencies();
   writeSeaConfig();
   buildSeaBridge();

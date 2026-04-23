@@ -3,6 +3,7 @@ import { readOptionValue, readPositionalArgs } from "../arguments.js";
 import {
   canPromptForClarifications,
   collectClarificationAnswers,
+  mergePlannerAnswers,
   readPlannerResponse,
   renderPlannerInquiry,
 } from "./plannerCliSupport.js";
@@ -28,7 +29,7 @@ export async function runPlanCommand(rootPath: string, args: string[], terminal:
   const plannerName = readOptionValue(args, ["--planner", "--planner-name"]) ?? undefined;
   let clarificationAnswers: PlannerAnswer[] = [];
   let attempts = 0;
-  let result = workspaceAppService.runPlanner({
+  let result = await workspaceAppService.runPlanner({
     goal,
     rootPath,
     ...(plannerName ? { plannerName } : {}),
@@ -56,9 +57,9 @@ export async function runPlanCommand(rootPath: string, args: string[], terminal:
       return;
     }
 
-    clarificationAnswers = answers;
+    clarificationAnswers = mergePlannerAnswers(clarificationAnswers, answers);
     attempts += 1;
-    result = workspaceAppService.runPlanner({
+    result = await workspaceAppService.runPlanner({
       clarificationAnswers,
       goal,
       rootPath,

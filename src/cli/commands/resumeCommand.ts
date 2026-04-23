@@ -3,6 +3,7 @@ import { readOptionValue } from "../arguments.js";
 import {
   canPromptForClarifications,
   collectClarificationAnswers,
+  mergePlannerAnswers,
   readPlannerAnswers,
   readPlannerResponse,
   renderPlannerInquiry,
@@ -27,7 +28,7 @@ export async function runResumeCommand(rootPath: string, args: string[], termina
   const plannerResponseJson = plannerResponsePath ? await readPlannerResponse(plannerResponsePath) : undefined;
   const plannerName = readOptionValue(args, ["--planner", "--planner-name"]) ?? pendingInquiry.planner;
 
-  if (!isLocalPlanner(pendingInquiry.planner) && !plannerResponseJson) {
+  if (requiresImportedPlannerResponse(pendingInquiry.plannerSource) && !plannerResponseJson) {
     terminal.info("");
     terminal.info("This inquiry came from an external planner.");
     terminal.info('Resume it with a fresh planner JSON response: `cuer resume --planner-response <file> --planner <name>`');
@@ -39,7 +40,7 @@ export async function runResumeCommand(rootPath: string, args: string[], termina
     return;
   }
 
-  let result = workspaceAppService.runPlanner({
+  let result = await workspaceAppService.runPlanner({
     clarificationAnswers,
     goal: pendingInquiry.goal,
     rootPath,
@@ -47,7 +48,7 @@ export async function runResumeCommand(rootPath: string, args: string[], termina
     ...(plannerName ? { plannerName } : {}),
   });
 
-  while (result.kind === "questions" && !plannerResponseJson && isLocalPlanner(result.planner) && canPromptForClarifications()) {
+  while (result.kind === "questions" && !plannerResponseJson && canPromptForClarifications()) {
     terminal.info("");
     terminal.info("Planner still needs clarification before creating a plan.");
     renderPlannerInquiry(result.planner, result.inquiry, terminal);
@@ -60,8 +61,8 @@ export async function runResumeCommand(rootPath: string, args: string[], termina
       return;
     }
 
-    clarificationAnswers = nextAnswers;
-    result = workspaceAppService.runPlanner({
+    clarificationAnswers = mergePlannerAnswers(clarificationAnswers, nextAnswers);
+    result = await workspaceAppService.runPlanner({
       clarificationAnswers,
       goal: pendingInquiry.goal,
       rootPath,
@@ -106,6 +107,6 @@ async function resolveClarificationAnswers(
   return collectClarificationAnswers(inquiry, terminal);
 }
 
-function isLocalPlanner(planner: string): boolean {
-  return planner.startsWith("simple-");
+function requiresImportedPlannerResponse(plannerSource: "account" | "external-json" | "simple"): boolean {
+  return plannerSource === "external-json";
 }

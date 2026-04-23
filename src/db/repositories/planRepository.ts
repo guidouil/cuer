@@ -40,6 +40,20 @@ export class PlanRepository {
     return plan;
   }
 
+  countByProjectId(projectId: string): number {
+    const row = this.db
+      .prepare<[string], { count: number }>(
+        `
+          SELECT COUNT(*) AS count
+          FROM plans
+          WHERE project_id = ?
+        `,
+      )
+      .get(projectId);
+
+    return row?.count ?? 0;
+  }
+
   findLatestByProjectId(projectId: string): Plan | null {
     const row = this.db
       .prepare<[string], PlanRow>(
@@ -54,6 +68,19 @@ export class PlanRepository {
       .get(projectId);
 
     return row ? mapPlan(row) : null;
+  }
+
+  deleteByProjectId(projectId: string): number {
+    const result = this.db
+      .prepare(
+        `
+          DELETE FROM plans
+          WHERE project_id = ?
+        `,
+      )
+      .run(projectId);
+
+    return result.changes;
   }
 
   updateStatus(planId: string, status: Plan["status"], updatedAt: string): void {

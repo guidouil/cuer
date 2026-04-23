@@ -6,6 +6,7 @@ import { runAccountsCommand } from "./commands/accountsCommand.js";
 import { runAddAccountCommand } from "./commands/addAccountCommand.js";
 import { runInitCommand } from "./commands/initCommand.js";
 import { runPlanCommand } from "./commands/planCommand.js";
+import { runResetCommand } from "./commands/resetCommand.js";
 import { runResumeCommand } from "./commands/resumeCommand.js";
 import { runRunCommand } from "./commands/runCommand.js";
 import { runShowArtifactCommand } from "./commands/showArtifactCommand.js";
@@ -40,6 +41,9 @@ async function main(): Promise<void> {
         return;
       case "plan":
         await runPlanCommand(rootPath, args, terminal);
+        return;
+      case "reset":
+        runResetCommand(rootPath, terminal);
         return;
       case "resume":
         await runResumeCommand(rootPath, args, terminal);
@@ -101,6 +105,7 @@ function printHelp(): void {
   terminal.info("  cuer add-account --provider <type> --name <label> [--auth <method>] [--base-url <url>] [--secret-env <ENV>]");
   terminal.info('  cuer plan "your objective"');
   terminal.info('  cuer plan --planner-response <file|-> --planner <name> --goal "your objective"');
+  terminal.info("  cuer reset");
   terminal.info("  cuer resume [--answers-file <file>] [--planner-response <file>] [--planner <name>]");
   terminal.info("  cuer tasks");
   terminal.info("  cuer run [--task <task-id>]");

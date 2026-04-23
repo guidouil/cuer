@@ -17,7 +17,7 @@ V0 provides:
 - an OS keychain-backed secret storage abstraction
 - explicit domain entities for projects, plans, tasks, task dependencies, and events
 - account-gated planner and run flows that resolve provider access through the shared core
-- a simple isolated planner that generates an honest initial task graph
+- a provider-backed planner that executes `prompts/planner.md` through the configured planning account model
 - ingestion of strict external planner JSON responses compatible with `prompts/planner.md`
 - a task lifecycle engine that validates state transitions and keeps queue readiness synchronized
 - a first `run` command wired to an external runner port with a local manual handoff implementation
@@ -241,9 +241,10 @@ src-tauri/
 - initializes the workspace if missing
 - requires the Account Manager to resolve a planning gateway first
 - creates the project record if needed
-- lets the local planner ask for clarification first when the goal is too underspecified
+- sends the goal plus `prompts/planner.md` to the configured planning account model by default
+- lets the configured planner ask for clarification first when the goal is too underspecified
 - continues interactively in the CLI when clarification answers are needed and the session is attached to a TTY
-- generates a simple initial plan with atomic tasks when a safe minimal path is available
+- persists the returned atomic task graph when the planner chooses `create_plan`
 - accepts `--planner-response <file>` or `--planner-response -` to ingest a strict external JSON response
 - accepts `--planner <name>` to record the provider or planner label used for the external response
 - validates the external response against the `prompts/planner.md` schema before persisting anything
@@ -254,7 +255,7 @@ src-tauri/
 ### `cuer resume`
 
 - reloads the latest pending planner inquiry from persisted workspace events
-- resumes local planner clarification rounds without requiring the original interactive shell
+- resumes account-backed clarification rounds without requiring the original interactive shell
 - prompts for answers in a TTY, or accepts `--answers-file <file>` with JSON answers keyed by question id
 - accepts `--planner-response <file>` and `--planner <name>` when the pending inquiry came from an external planner
 - records clarification answers and either creates the plan or stores a new pending inquiry round
@@ -358,6 +359,12 @@ Bundled prompt contracts live under `prompts/` at the repository root. Runtime h
 
 Recommended flow:
 
+1. Configure a planning account with a default model.
+2. Run `cuer plan "Your objective"`.
+3. Cuer sends the goal, clarification answers, and `prompts/planner.md` to the configured model and persists the returned `ask_user` or `create_plan` result.
+
+Manual import flow:
+
 1. Send the user request plus `prompts/planner.md` to the provider of your choice.
 2. Force a JSON-only response.
 3. Save the response to a file, or pipe it to stdin.
@@ -378,8 +385,8 @@ If the response mode is `ask_user`, Cuer prints the blocking questions and recor
 
 ## Limits of V0
 
-- provider-backed usage and cost writes are scaffolded, but the current local planner and manual runner do not emit full real provider accounting yet
-- the planner is heuristic and deliberately simple even though it can now stop for clarification before task decomposition
+- provider-backed usage and cost writes are scaffolded, but the current planner and manual runner do not emit full real provider accounting yet
+- the planner depends on a configured account model or an imported external JSON response; it does not include a heuristic local fallback anymore
 - the current runner is a manual external handoff, not a live agent execution backend
 - no `review` command yet
 - no TUI or local UI yet

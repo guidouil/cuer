@@ -36,6 +36,25 @@ export class EventRepository {
     return event;
   }
 
+  deleteByProjectIdAndTypes(projectId: string, types: readonly string[]): number {
+    if (types.length === 0) {
+      return 0;
+    }
+
+    const placeholders = types.map(() => "?").join(", ");
+    const result = this.db
+      .prepare(
+        `
+          DELETE FROM events
+          WHERE project_id = ?
+            AND type IN (${placeholders})
+        `,
+      )
+      .run(projectId, ...types);
+
+    return result.changes;
+  }
+
   listRecentByProjectId(projectId: string, limit = 10): Event[] {
     const rows = this.db
       .prepare<[string, number], EventRow>(

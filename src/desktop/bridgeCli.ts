@@ -135,7 +135,7 @@ async function main(): Promise<void> {
         const plannerName = args[2]?.trim() || undefined;
         const plannerResponseJson = args[3]?.trim() || undefined;
         writeJson(
-          workspaceAppService.runPlanner({
+          await workspaceAppService.runPlanner({
             ...(clarificationAnswers.length > 0 ? { clarificationAnswers } : {}),
             goal,
             ...(plannerName ? { plannerName } : {}),

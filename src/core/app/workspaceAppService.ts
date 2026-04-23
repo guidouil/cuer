@@ -7,7 +7,6 @@ import {
 } from "../planner/plannerJson.js";
 import { findPendingPlannerInquiry } from "../planner/pendingPlannerInquiry.js";
 import { PlanningService } from "../planner/planningService.js";
-import { SimplePlanner } from "../planner/simplePlanner.js";
 import {
   AccountManagerService,
   type AccountRecord,
@@ -17,12 +16,13 @@ import {
 } from "../accounts/accountManagerService.js";
 import { createId } from "../../utils/id.js";
 import { nowIso } from "../../utils/time.js";
-import { resolveWorkspacePaths, workspaceExists } from "../../filesystem/workspace.js";
+import { clearWorkflowFiles, resolveWorkspacePaths, workspaceExists } from "../../filesystem/workspace.js";
 import {
   OPENAI_OAUTH_ENDPOINTS,
   createOpenAiOauthSession,
   exchangeOpenAiOauthCode,
 } from "../../integrations/openai/openAiOauth.js";
+import { createProviderPlanner } from "../../integrations/planning/accountPlanner.js";
 import type {
   AccountGatewaySummary,
   CreateProviderAccountResult,
@@ -41,6 +41,7 @@ import type {
   Plan,
   PlannerAnswer,
   PlannerInquiry,
+  PlannerSource,
   Project,
   Provider,
   Task,
@@ -84,6 +85,28 @@ export interface DeleteProviderAccountInput {
   accountId: string;
   rootPath: string;
 }
+
+export interface ResetProjectWorkflowResult {
+  projectFound: boolean;
+  removedEventCount: number;
+  removedExecutionArtifactCount: number;
+  removedPlanCount: number;
+  removedPlanSnapshotCount: number;
+  removedPromptCount: number;
+  removedTaskCount: number;
+}
+
+const WORKFLOW_EVENT_TYPES = [
+  "planner.access.resolved",
+  "planner.questions.answered",
+  "planner.questions.generated",
+  "plan.created",
+  "plan.status.changed",
+  "task.execution.reported",
+  "task.run.dispatched",
+  "task.status.changed",
+  "task.status.synced",
+] as const;
 
 export class WorkspaceAppService {
   private readonly accountManager = new AccountManagerService();
@@ -154,6 +177,48 @@ export class WorkspaceAppService {
     }
   }
 
+  resetProjectWorkflow(rootPath: string): ResetProjectWorkflowResult {
+    const context = WorkspaceContext.open(rootPath);
+
+    try {
+      const project = context.repositories.projects.findByRootPath(rootPath);
+      if (!project) {
+        return {
+          projectFound: false,
+          removedEventCount: 0,
+          removedExecutionArtifactCount: 0,
+          removedPlanCount: 0,
+          removedPlanSnapshotCount: 0,
+          removedPromptCount: 0,
+          removedTaskCount: 0,
+        };
+      }
+
+      const removedPlanCount = context.repositories.plans.countByProjectId(project.id);
+      const removedTaskCount = context.repositories.tasks.countByProjectId(project.id);
+      let removedEventCount = 0;
+
+      context.database.connection.transaction(() => {
+        removedEventCount = context.repositories.events.deleteByProjectIdAndTypes(project.id, WORKFLOW_EVENT_TYPES);
+        context.repositories.plans.deleteByProjectId(project.id);
+      })();
+
+      const clearedFiles = clearWorkflowFiles(context.paths);
+
+      return {
+        projectFound: true,
+        removedEventCount,
+        removedExecutionArtifactCount: clearedFiles.removedExecutionArtifactCount,
+        removedPlanCount,
+        removedPlanSnapshotCount: clearedFiles.removedPlanSnapshotCount,
+        removedPromptCount: clearedFiles.removedPromptCount,
+        removedTaskCount,
+      };
+    } finally {
+      context.close();
+    }
+  }
+
   getWorkspaceOverview(rootPath: string): WorkspaceOverview {
     const context = WorkspaceContext.open(rootPath, { autoInitialize: true });
 
@@ -199,7 +264,7 @@ export class WorkspaceAppService {
     }
   }
 
-  runPlanner(input: RunPlannerInput): PlannerExecutionResult {
+  async runPlanner(input: RunPlannerInput): Promise<PlannerExecutionResult> {
     const context = WorkspaceContext.open(input.rootPath, { autoInitialize: true });
 
     try {
@@ -219,38 +284,18 @@ export class WorkspaceAppService {
         return this.runExternalPlanner(context, project, gateway, input);
       }
 
-      const planningService = new PlanningService(new SimplePlanner());
-      const result = planningService.createInitialPlan(context, project, input.goal, input.clarificationAnswers ?? []);
-      if (result.kind === "questions") {
-        recordPlannerInquiryEvent(context, project, result.planner, input.goal, result.inquiry);
+      const planner = createProviderPlanner(gateway);
+      const rawResponse = parseExternalPlannerResponse(
+        await planner.createResponse({
+          clarificationAnswers: input.clarificationAnswers ?? [],
+          goal: input.goal,
+          projectId: project.id,
+          projectName: project.name,
+          rootPath: input.rootPath,
+        }),
+      );
 
-        return {
-          kind: "questions",
-          gateway: mapGateway(gateway),
-          inquiry: result.inquiry,
-          planner: result.planner,
-          rawResponse: result.inquiry,
-          workspace: buildWorkspaceOverview(context, project.id, this.accountManager),
-        };
-      }
-
-      const status = getProjectStatus(context, project);
-
-      return {
-        kind: "plan",
-        gateway: mapGateway(gateway),
-        planner: result.planner,
-        plan: result.plan,
-        dependencies: result.dependencies,
-        tasks: result.tasks,
-        rawResponse: {
-          plan: result.plan,
-          tasks: result.tasks,
-          dependencies: result.dependencies,
-          status,
-        },
-        workspace: buildWorkspaceOverview(context, project.id, this.accountManager),
-      };
+      return this.applyPlannerResponse(context, project, gateway, input, planner.name, "account", rawResponse);
     } finally {
       context.close();
     }
@@ -265,15 +310,29 @@ export class WorkspaceAppService {
     const rawResponse = parseExternalPlannerResponse(input.plannerResponseJson ?? "");
     const plannerName = input.plannerName?.trim() || "external-json-v1";
 
+    return this.applyPlannerResponse(context, project, gateway, input, plannerName, "external-json", rawResponse);
+  }
+
+  private applyPlannerResponse(
+    context: WorkspaceContext,
+    project: Project,
+    gateway: ResolvedAccountAccess,
+    input: RunPlannerInput,
+    plannerName: string,
+    plannerSource: PlannerSource,
+    rawResponse: ReturnType<typeof parseExternalPlannerResponse>,
+  ): PlannerExecutionResult {
+
     if (rawResponse.mode === "ask_user") {
       const inquiry = createPlannerInquiry(rawResponse);
-      recordPlannerInquiryEvent(context, project, plannerName, input.goal, inquiry);
+      recordPlannerInquiryEvent(context, project, plannerName, plannerSource, input.goal, inquiry);
 
       return {
         kind: "questions",
         gateway: mapGateway(gateway),
         inquiry,
         planner: plannerName,
+        plannerSource,
         rawResponse,
         workspace: buildWorkspaceOverview(context, project.id, this.accountManager),
       };
@@ -504,6 +563,7 @@ function recordPlannerInquiryEvent(
   context: WorkspaceContext,
   project: Project,
   plannerName: string,
+  plannerSource: PlannerSource,
   goal: string,
   inquiry: PlannerInquiry,
 ): void {
@@ -517,6 +577,7 @@ function recordPlannerInquiryEvent(
       blockingUnknowns: inquiry.blockingUnknowns,
       goal,
       planner: plannerName,
+      plannerSource,
       projectSearch: inquiry.projectSearch,
       questions: inquiry.questions,
       sourceProjectId: inquiry.sourceProjectId,

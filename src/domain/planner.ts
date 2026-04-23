@@ -57,6 +57,10 @@ export interface PlannerPort {
   createPlan(input: PlannerInput): PlannerDecision;
 }
 
+export const PLANNER_SOURCES = ["account", "external-json", "simple"] as const;
+
+export type PlannerSource = (typeof PLANNER_SOURCES)[number];
+
 export type PlannerResponseMode = "ask_user" | "create_plan";
 
 export type PlannerResponseTaskType =

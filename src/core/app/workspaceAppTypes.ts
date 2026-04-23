@@ -4,6 +4,7 @@ import type {
   ExternalPlannerResponse,
   Plan,
   PlannerInquiry,
+  PlannerSource,
   Project,
   Provider,
   ProviderType,
@@ -25,6 +26,7 @@ export interface PendingPlannerInquirySummary {
   goal: string;
   inquiry: PlannerInquiry;
   planner: string;
+  plannerSource: PlannerSource;
 }
 
 export interface WorkspaceProjectSummary {
@@ -119,6 +121,7 @@ export interface PlannerInquiryResult {
   inquiry: PlannerInquiry;
   kind: "questions";
   planner: string;
+  plannerSource: PlannerSource;
   rawResponse: ExternalPlannerResponse | PlannerInquiry;
   workspace: WorkspaceOverview;
 }

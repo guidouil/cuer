@@ -53,6 +53,16 @@ export async function collectClarificationAnswers(
   return answers;
 }
 
+export function mergePlannerAnswers(existing: PlannerAnswer[], next: PlannerAnswer[]): PlannerAnswer[] {
+  const merged = new Map(existing.map((answer) => [answer.questionId, answer]));
+
+  for (const answer of next) {
+    merged.set(answer.questionId, answer);
+  }
+
+  return [...merged.values()];
+}
+
 export function canPromptForClarifications(): boolean {
   return stdin.isTTY === true && stdout.isTTY === true;
 }

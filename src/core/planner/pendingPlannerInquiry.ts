@@ -1,10 +1,11 @@
-import type { Event, JsonObject, PlannerInquiry } from "../../domain/index.js";
+import type { Event, JsonObject, PlannerInquiry, PlannerSource } from "../../domain/index.js";
 
 export interface PendingPlannerInquiry {
   createdAt: string;
   goal: string;
   inquiry: PlannerInquiry;
   planner: string;
+  plannerSource: PlannerSource;
 }
 
 const RESOLVING_EVENT_TYPES = new Set(["planner.questions.answered", "plan.created"]);
@@ -37,12 +38,13 @@ function parsePendingPlannerInquiry(event: Event): PendingPlannerInquiry | null 
   const summary = readString(payload.summary);
   const sourceProjectId = readString(payload.sourceProjectId);
   const planner = readString(payload.planner);
+  const plannerSource = readPlannerSource(payload.plannerSource, planner);
   const goal = readString(payload.goal);
   const blockingUnknowns = readStringArray(payload.blockingUnknowns);
   const questions = readQuestions(payload.questions);
   const projectSearch = readProjectSearch(payload.projectSearch);
 
-  if (!summary || !sourceProjectId || !planner || !goal || !projectSearch || questions.length === 0) {
+  if (!summary || !sourceProjectId || !planner || !plannerSource || !goal || !projectSearch || questions.length === 0) {
     return null;
   }
 
@@ -57,6 +59,7 @@ function parsePendingPlannerInquiry(event: Event): PendingPlannerInquiry | null 
       summary,
     },
     planner,
+    plannerSource,
   };
 }
 
@@ -70,6 +73,22 @@ function readString(value: unknown): string | null {
 
 function readStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
+}
+
+function readPlannerSource(value: unknown, planner: string | null): PlannerSource | null {
+  if (value === "account" || value === "external-json" || value === "simple") {
+    return value;
+  }
+
+  if (!planner) {
+    return null;
+  }
+
+  if (planner.startsWith("simple-")) {
+    return "simple";
+  }
+
+  return "external-json";
 }
 
 function readQuestions(value: unknown): PlannerInquiry["questions"] {

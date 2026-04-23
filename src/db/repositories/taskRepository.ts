@@ -76,6 +76,20 @@ export class TaskRepository {
     transaction(tasks);
   }
 
+  countByProjectId(projectId: string): number {
+    const row = this.db
+      .prepare<[string], { count: number }>(
+        `
+          SELECT COUNT(*) AS count
+          FROM tasks
+          WHERE project_id = ?
+        `,
+      )
+      .get(projectId);
+
+    return row?.count ?? 0;
+  }
+
   listByPlanId(planId: string): Task[] {
     const rows = this.db
       .prepare<[string], TaskRow>(

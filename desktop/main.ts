@@ -539,9 +539,8 @@ function renderPlannerResult(): string {
             <textarea id="planner-active-goal" disabled>${escapeHtml(plannerInquiry.goal)}</textarea>
           </div>
           ${
-            isLocalPlannerName(plannerInquiry.planner)
-              ? ""
-              : `
+            requiresPlannerResponseImport(plannerInquiry)
+              ? `
                 <div class="field">
                   <label for="planner-response-file">Import planner response JSON</label>
                   <input
@@ -559,6 +558,7 @@ function renderPlannerResult(): string {
                   </p>
                 </div>
               `
+              : ""
           }
           ${plannerInquiry.inquiry.questions
             .map(
@@ -973,7 +973,7 @@ function bindPlannerClarificationForm(): void {
       return;
     }
 
-    const requiresPlannerResponse = !isLocalPlannerName(plannerInquiry.planner);
+    const requiresPlannerResponse = requiresPlannerResponseImport(plannerInquiry);
     if (requiresPlannerResponse && !state.plannerResponseJson) {
       state.errorMessage = "Import a planner response JSON file before continuing this external planner round.";
       render();
@@ -1057,6 +1057,7 @@ function applyPlannerResult(result: PlannerResult, goal: string): void {
       goal,
       inquiry: result.inquiry,
       planner: result.planner,
+      plannerSource: result.plannerSource,
     };
     state.plannerClarificationAnswers = buildClarificationAnswerState(
       result.inquiry.questions.map((question) => question.id),
@@ -1079,7 +1080,8 @@ function applyOverviewState(overview: WorkspaceOverview): void {
   const pendingPlannerInquiry = selectPendingPlannerInquiry(overview);
   const inquiryChanged =
     pendingPlannerInquiry?.createdAt !== state.pendingPlannerInquiry?.createdAt
-    || pendingPlannerInquiry?.planner !== state.pendingPlannerInquiry?.planner;
+    || pendingPlannerInquiry?.planner !== state.pendingPlannerInquiry?.planner
+    || pendingPlannerInquiry?.plannerSource !== state.pendingPlannerInquiry?.plannerSource;
   state.pendingPlannerInquiry = pendingPlannerInquiry;
 
   if (!pendingPlannerInquiry) {
@@ -1126,6 +1128,7 @@ function activePlannerInquiry(): PendingPlannerInquirySummary | null {
       goal: state.plannerActiveGoal ?? state.plannerGoal,
       inquiry: state.lastPlannerResult.inquiry,
       planner: state.lastPlannerResult.planner,
+      plannerSource: state.lastPlannerResult.plannerSource,
     };
   }
 
@@ -1146,7 +1149,7 @@ function resumePendingPlannerInquiry(inquiry: PendingPlannerInquirySummary): voi
     inquiry.inquiry.questions.map((question) => question.id),
     state.plannerClarificationAnswers,
   );
-  if (isLocalPlannerName(inquiry.planner)) {
+  if (!requiresPlannerResponseImport(inquiry)) {
     resetPlannerResponseImport();
   }
   state.screen = "planner";
@@ -1276,8 +1279,8 @@ function formatProjectGatewayLabel(gateway: ProjectWorkGatewaySummary | null): s
   return gateway.reason ?? "Gateway unavailable.";
 }
 
-function isLocalPlannerName(planner: string): boolean {
-  return planner.startsWith("simple-");
+function requiresPlannerResponseImport(inquiry: PendingPlannerInquirySummary): boolean {
+  return inquiry.plannerSource === "external-json";
 }
 
 function normalizeError(error: unknown): string {
