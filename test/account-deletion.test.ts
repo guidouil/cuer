@@ -51,13 +51,13 @@ test("deleting a provider account removes its stored secret and cascaded records
 });
 
 test("desktop frontend exposes a delete action for saved provider configurations", async () => {
-  const desktopSource = await readFile(repoPath("desktop/main.ts"), "utf8");
+  const desktopSource = await readDesktopSources(["desktop/render.ts", "desktop/bindings.ts"]);
 
   assert.match(desktopSource, /prompt-delete-account/);
   assert.match(desktopSource, /confirm-delete-account/);
   assert.match(desktopSource, /delete_provider_account/);
   assert.match(desktopSource, /role="dialog"/);
-  assert.match(desktopSource, /icon-trash/);
+  assert.match(desktopSource, /<i>delete<\/i>/);
 });
 
 interface InMemorySecretStore extends SecretStore {
@@ -85,4 +85,8 @@ function createInMemorySecretStore(): InMemorySecretStore {
 
 function repoPath(relativePath: string): string {
   return join(REPO_ROOT, relativePath);
+}
+
+async function readDesktopSources(relativePaths: string[]): Promise<string> {
+  return (await Promise.all(relativePaths.map((relativePath) => readFile(repoPath(relativePath), "utf8")))).join("\n");
 }

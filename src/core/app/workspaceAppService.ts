@@ -391,6 +391,7 @@ function buildProjectSummary(context: WorkspaceContext, project: Project): Works
   const status = getProjectStatus(context, project);
 
   return {
+    dependencies: status.dependencies,
     latestPlan: status.plan,
     pendingPlannerInquiry: inspectPendingPlannerInquiry(context, project),
     project,
@@ -402,6 +403,7 @@ function buildProjectSummary(context: WorkspaceContext, project: Project): Works
       runningTaskIds: status.queue.runningTaskIds,
     },
     taskCount: status.tasks.length,
+    tasks: status.tasks,
   };
 }
 

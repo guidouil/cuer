@@ -30,11 +30,13 @@ export interface PendingPlannerInquirySummary {
 }
 
 export interface WorkspaceProjectSummary {
+  dependencies: TaskDependency[];
   latestPlan: Plan | null;
   pendingPlannerInquiry: PendingPlannerInquirySummary | null;
   project: Project;
   queue: QueueSummary;
   taskCount: number;
+  tasks: Task[];
 }
 
 export interface ProviderCatalogItem {

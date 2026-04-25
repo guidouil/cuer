@@ -107,8 +107,8 @@ test("desktop frontend does not redeclare shared app-service DTOs", async () => 
     repoPath("src/core/app/workspaceAppService.ts"),
   );
   const desktopContracts = getDeclaredTypeNames(
-    await readFile(repoPath("desktop/main.ts"), "utf8"),
-    repoPath("desktop/main.ts"),
+    await readDesktopSources(["desktop/main.ts", "desktop/types.ts"]),
+    "desktop UI sources",
   );
   const duplicates = [...desktopContracts]
     .filter((name) => workspaceAppServiceContracts.has(name))
@@ -122,13 +122,23 @@ test("desktop frontend does not redeclare shared app-service DTOs", async () => 
 });
 
 test("desktop frontend exposes an explicit resume action for pending planner inquiries", async () => {
-  const desktopSource = await readFile(repoPath("desktop/main.ts"), "utf8");
+  const desktopSource = await readDesktopSources(["desktop/render.ts", "desktop/bindings.ts"]);
 
   assert.match(desktopSource, /data-action="resume-pending"/);
   assert.match(desktopSource, /Resume planner/);
   assert.match(desktopSource, /Planner waiting/);
   assert.match(desktopSource, /Import planner response JSON/);
   assert.match(desktopSource, /planner-response-file/);
+});
+
+test("desktop frontend follows the operating system color scheme", async () => {
+  const desktopSource = await readDesktopSources(["desktop/main.ts", "desktop/theme.ts", "desktop/index.html"]);
+
+  assert.match(desktopSource, /prefers-color-scheme: dark/);
+  assert.match(desktopSource, /classList\.toggle\("dark"/);
+  assert.match(desktopSource, /classList\.toggle\("light"/);
+  assert.match(desktopSource, /initializeSystemTheme/);
+  assert.doesNotMatch(desktopSource, /<body class="light">/);
 });
 
 class RecordingTerminal implements Terminal {
@@ -158,6 +168,10 @@ async function createTempDir(t: TestContext): Promise<string> {
 
 function repoPath(relativePath: string): string {
   return join(REPO_ROOT, relativePath);
+}
+
+async function readDesktopSources(relativePaths: string[]): Promise<string> {
+  return (await Promise.all(relativePaths.map((relativePath) => readFile(repoPath(relativePath), "utf8")))).join("\n");
 }
 
 function getDeclaredTypeNames(sourceText: string, filePath: string): Set<string> {

@@ -75,7 +75,7 @@ test("OpenAI OAuth token exchange normalizes the returned token set", async (t) 
 });
 
 test("desktop frontend exposes the browser OAuth entrypoint for OpenAI", async () => {
-  const desktopSource = await readFile(repoPath("desktop/main.ts"), "utf8");
+  const desktopSource = await readDesktopSources(["desktop/appState.ts", "desktop/render.ts", "desktop/bindings.ts"]);
 
   assert.match(desktopSource, /Connect in browser/);
   assert.match(desktopSource, /connect_openai_oauth/);
@@ -84,4 +84,8 @@ test("desktop frontend exposes the browser OAuth entrypoint for OpenAI", async (
 
 function repoPath(relativePath: string): string {
   return join(REPO_ROOT, relativePath);
+}
+
+async function readDesktopSources(relativePaths: string[]): Promise<string> {
+  return (await Promise.all(relativePaths.map((relativePath) => readFile(repoPath(relativePath), "utf8")))).join("\n");
 }
