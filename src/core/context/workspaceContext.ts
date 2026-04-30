@@ -8,7 +8,7 @@ import {
   ensureWorkspaceDirectories,
   inferProjectName,
   readWorkspaceConfig,
-  resolveWorkspacePaths,
+  resolveWorkspacePathsForOpen,
   type WorkspacePaths,
   workspaceExists,
   writeWorkspaceConfig,
@@ -25,6 +25,7 @@ export interface EnsureProjectResult {
 
 export interface OpenWorkspaceOptions {
   autoInitialize?: boolean;
+  discoverExisting?: boolean;
 }
 
 export class WorkspaceContext {
@@ -40,11 +41,11 @@ export class WorkspaceContext {
   }
 
   static open(rootPath: string, options: OpenWorkspaceOptions = {}): WorkspaceContext {
-    const paths = resolveWorkspacePaths(rootPath);
+    const paths = resolveWorkspacePathsForOpen(rootPath, options);
     const present = workspaceExists(paths);
 
     if (!present && !options.autoInitialize) {
-      throw new Error(`No Cuer workspace found in ${rootPath}. Run "cuer init" first.`);
+      throw new Error(`No Cuer workspace found from ${rootPath}. Run "cuer init [project-dir]" first.`);
     }
 
     ensureWorkspaceDirectories(paths);

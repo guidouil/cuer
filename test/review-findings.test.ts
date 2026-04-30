@@ -131,6 +131,32 @@ test("desktop frontend exposes an explicit resume action for pending planner inq
   assert.match(desktopSource, /planner-response-file/);
 });
 
+test("desktop frontend exposes multi-project workspace switching", async () => {
+  const desktopSource = await readDesktopSources([
+    "desktop/render.ts",
+    "desktop/bindings.ts",
+    "desktop/main.ts",
+    "desktop/workspaceRegistry.ts",
+  ]);
+  const tauriRuntime = await readFile(repoPath("src-tauri/src/lib.rs"), "utf8");
+  const tauriCapabilities = await readFile(repoPath("src-tauri/capabilities/default.json"), "utf8");
+
+  assert.match(desktopSource, /data-action="switch-workspace"/);
+  assert.match(desktopSource, /data-action="browse-workspace"/);
+  assert.match(desktopSource, /Add existing/);
+  assert.match(desktopSource, /Browse/);
+  assert.match(desktopSource, /Create \.cuer/);
+  assert.match(desktopSource, /try_workspace_overview/);
+  assert.match(desktopSource, /initialize_workspace/);
+  assert.match(desktopSource, /rootPath/);
+  assert.match(desktopSource, /localStorage/);
+  assert.match(desktopSource, /@tauri-apps\/plugin-dialog/);
+  assert.match(tauriRuntime, /fn initialize_workspace/);
+  assert.match(tauriRuntime, /root_path: Option<String>/);
+  assert.match(tauriRuntime, /tauri_plugin_dialog::init/);
+  assert.match(tauriCapabilities, /dialog:allow-open/);
+});
+
 test("desktop frontend follows the operating system color scheme", async () => {
   const desktopSource = await readDesktopSources(["desktop/main.ts", "desktop/theme.ts", "desktop/index.html"]);
 

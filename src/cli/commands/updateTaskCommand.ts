@@ -11,7 +11,7 @@ export function runUpdateTaskCommand(rootPath: string, args: string[], terminal:
   const context = WorkspaceContext.open(rootPath);
 
   try {
-    const project = context.repositories.projects.findByRootPath(rootPath);
+    const project = context.repositories.projects.findByRootPath(context.paths.rootPath);
     if (!project) {
       terminal.info('No project registered yet. Run "cuer init" or "cuer plan" first.');
       return;

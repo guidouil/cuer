@@ -38,14 +38,20 @@ export interface DeleteAccountDialogState {
   accountName: string;
 }
 
+export interface WorkspaceFormState {
+  path: string;
+}
+
 export interface AppState {
   accountForm: AccountFormState;
   accountPendingDeletion: DeleteAccountDialogState | null;
   deletingAccountId: string | null;
   debugPayload: unknown;
   errorMessage: string | null;
+  activeWorkspacePath: string | null;
   isLoadingOverview: boolean;
   isRunningPlanner: boolean;
+  isSavingWorkspace: boolean;
   isSavingAccount: boolean;
   lastPlannerResult: PlannerResult | null;
   overview: WorkspaceOverview | null;
@@ -57,6 +63,8 @@ export interface AppState {
   plannerResponseJson: string | null;
   screen: Screen;
   selectedProjectId: string | null;
+  workspaceForm: WorkspaceFormState;
+  workspacePaths: string[];
 }
 
 export interface CreateProviderAccountResult {

@@ -63,8 +63,29 @@ struct HttpRequest {
 }
 
 #[tauri::command]
-fn get_workspace_overview(app: tauri::AppHandle) -> Result<Value, String> {
-    run_bridge(&app, "workspace-overview", Vec::new())
+fn initialize_workspace(app: tauri::AppHandle, root_path: String) -> Result<Value, String> {
+    run_bridge(&app, "initialize-workspace", Some(root_path), Vec::new())
+}
+
+#[tauri::command]
+fn get_workspace_overview(
+    app: tauri::AppHandle,
+    root_path: Option<String>,
+) -> Result<Value, String> {
+    run_bridge(&app, "workspace-overview", root_path, Vec::new())
+}
+
+#[tauri::command]
+fn try_workspace_overview(
+    app: tauri::AppHandle,
+    root_path: String,
+) -> Result<Option<Value>, String> {
+    let value = run_bridge(&app, "try-workspace-overview", Some(root_path), Vec::new())?;
+    if value.is_null() {
+        return Ok(None);
+    }
+
+    Ok(Some(value))
 }
 
 #[tauri::command]
@@ -74,6 +95,7 @@ fn run_planner(
     clarification_answers: Option<Value>,
     planner_name: Option<String>,
     planner_response_json: Option<String>,
+    root_path: Option<String>,
 ) -> Result<Value, String> {
     let answers_json = clarification_answers
         .unwrap_or_else(|| Value::Array(Vec::new()))
@@ -81,6 +103,7 @@ fn run_planner(
     run_bridge(
         &app,
         "run-planner",
+        root_path,
         vec![
             goal,
             answers_json,
@@ -91,19 +114,38 @@ fn run_planner(
 }
 
 #[tauri::command]
-fn create_provider_account(app: tauri::AppHandle, payload: Value) -> Result<Value, String> {
-    run_bridge(&app, "create-provider-account", vec![payload.to_string()])
+fn create_provider_account(
+    app: tauri::AppHandle,
+    payload: Value,
+    root_path: Option<String>,
+) -> Result<Value, String> {
+    run_bridge(
+        &app,
+        "create-provider-account",
+        root_path,
+        vec![payload.to_string()],
+    )
 }
 
 #[tauri::command]
-fn delete_provider_account(app: tauri::AppHandle, payload: Value) -> Result<Value, String> {
-    run_bridge(&app, "delete-provider-account", vec![payload.to_string()])
+fn delete_provider_account(
+    app: tauri::AppHandle,
+    payload: Value,
+    root_path: Option<String>,
+) -> Result<Value, String> {
+    run_bridge(
+        &app,
+        "delete-provider-account",
+        root_path,
+        vec![payload.to_string()],
+    )
 }
 
 #[tauri::command]
 fn connect_openai_oauth(
     app: tauri::AppHandle,
     payload: ConnectOpenAiOauthRequest,
+    root_path: Option<String>,
 ) -> Result<Value, String> {
     let account_name = payload.name.trim();
     if account_name.is_empty() {
@@ -121,6 +163,7 @@ fn connect_openai_oauth(
     let session_value = run_bridge(
         &app,
         "create-openai-oauth-session",
+        root_path.clone(),
         vec![session_payload],
     )?;
     let session: OpenAiOauthSession = serde_json::from_value(session_value)
@@ -161,7 +204,12 @@ fn connect_openai_oauth(
                     "Failed to serialize the completed OpenAI OAuth payload for the desktop bridge: {error}"
                 )
             })?;
-            let bridge_result = run_bridge(&app, "connect-openai-oauth", vec![bridge_payload]);
+            let bridge_result = run_bridge(
+                &app,
+                "connect-openai-oauth",
+                root_path.clone(),
+                vec![bridge_payload],
+            );
 
             match &bridge_result {
                 Ok(_) => {
@@ -195,8 +243,11 @@ fn connect_openai_oauth(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            initialize_workspace,
             get_workspace_overview,
+            try_workspace_overview,
             run_planner,
             create_provider_account,
             delete_provider_account,
@@ -209,10 +260,12 @@ pub fn run() {
 fn run_bridge(
     app: &tauri::AppHandle,
     command_name: &str,
+    root_path: Option<String>,
     extra_args: Vec<String>,
 ) -> Result<Value, String> {
-    let root_path = workspace_root()?;
-    let bridge_path = resolve_bridge_path(app, &root_path)?;
+    let runtime_root = workspace_root()?;
+    let project_root = resolve_requested_workspace_root(root_path, &runtime_root)?;
+    let bridge_path = resolve_bridge_path(app, &runtime_root)?;
     if !bridge_path.exists() {
         return Err(format!(
             "Desktop bridge not found at {}. Run `npm run desktop:bridge` and try again.",
@@ -221,9 +274,9 @@ fn run_bridge(
     }
 
     let output = Command::new(&bridge_path)
-        .current_dir(&root_path)
+        .current_dir(&project_root)
         .arg(command_name)
-        .arg(root_path.to_string_lossy().to_string())
+        .arg(project_root.to_string_lossy().to_string())
         .args(extra_args)
         .output()
         .map_err(|error| {
@@ -548,6 +601,53 @@ fn normalize_optional_text(value: Option<&str>) -> Option<&str> {
         Some("") | None => None,
         Some(text) => Some(text),
     }
+}
+
+fn resolve_requested_workspace_root(
+    root_path: Option<String>,
+    fallback_root: &Path,
+) -> Result<PathBuf, String> {
+    let Some(root_path) = root_path.map(|value| value.trim().to_string()).filter(|value| !value.is_empty()) else {
+        return Ok(fallback_root.to_path_buf());
+    };
+
+    let path = expand_home_path(&root_path);
+    if !path.exists() {
+        return Err(format!(
+            "Project directory does not exist: {}",
+            path.display()
+        ));
+    }
+
+    if !path.is_dir() {
+        return Err(format!(
+            "Project path is not a directory: {}",
+            path.display()
+        ));
+    }
+
+    path.canonicalize().map_err(|error| {
+        format!(
+            "Failed to resolve project directory {}: {error}",
+            path.display()
+        )
+    })
+}
+
+fn expand_home_path(value: &str) -> PathBuf {
+    if value == "~" {
+        if let Some(home) = std::env::var_os("HOME") {
+            return PathBuf::from(home);
+        }
+    }
+
+    if let Some(stripped) = value.strip_prefix("~/") {
+        if let Some(home) = std::env::var_os("HOME") {
+            return PathBuf::from(home).join(stripped);
+        }
+    }
+
+    PathBuf::from(value)
 }
 
 fn workspace_root() -> Result<PathBuf, String> {

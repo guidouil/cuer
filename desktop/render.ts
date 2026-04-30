@@ -24,6 +24,7 @@ import {
   statusTone,
 } from "./format.js";
 import { state } from "./state.js";
+import { workspaceDisplayName } from "./workspaceRegistry.js";
 
 export function renderApp(): string {
   return `
@@ -49,6 +50,10 @@ function renderDesktopNavigation(): string {
           <h6>Cuer</h6>
         </nav>
       </header>
+      <p class="small-text upper left-padding right-padding">Project roots</p>
+      ${renderWorkspaceList("wide")}
+      ${renderWorkspaceForm()}
+      <div class="divider"></div>
       <p class="small-text upper left-padding right-padding">Projects</p>
       ${renderProjectTree("wide")}
       <div class="max"></div>
@@ -68,6 +73,8 @@ function renderRailNavigation(): string {
       <header>
         <img class="circle extra brand-logo" src="./assets/cuer-icon.png" alt="Cuer" />
       </header>
+      ${renderWorkspaceList("rail")}
+      <div class="divider"></div>
       ${renderProjectTree("rail")}
       <div class="max"></div>
       <a class="${state.screen === "accounts" ? "active" : ""}" data-screen="accounts">
@@ -75,6 +82,75 @@ function renderRailNavigation(): string {
         <span>Accounts</span>
       </a>
     </nav>
+  `;
+}
+
+function renderWorkspaceList(mode: "wide" | "rail"): string {
+  const activePath = state.overview?.workspacePath ?? state.activeWorkspacePath;
+  if (state.workspacePaths.length === 0 && !activePath) {
+    return `
+      <a>
+        <i>folder_open</i>
+        <span>${mode === "wide" ? "No project root" : "Roots"}</span>
+      </a>
+    `;
+  }
+
+  const paths = state.workspacePaths.includes(activePath ?? "")
+    ? state.workspacePaths
+    : activePath
+      ? [activePath, ...state.workspacePaths]
+      : state.workspacePaths;
+
+  return paths
+    .map((path) => {
+      const isActive = path === activePath;
+      return `
+        <a
+          class="${isActive ? "active" : ""}"
+          data-action="switch-workspace"
+          data-workspace-path="${escapeAttribute(path)}"
+          title="${escapeAttribute(path)}"
+        >
+          <i>${isActive ? "folder_special" : "folder_open"}</i>
+          <span>
+            ${mode === "wide" ? escapeHtml(workspaceDisplayName(path)) : "Root"}
+            ${mode === "wide" ? `<small>${escapeHtml(path)}</small>` : ""}
+          </span>
+        </a>
+      `;
+    })
+    .join("");
+}
+
+function renderWorkspaceForm(): string {
+  return `
+    <form id="workspace-form" class="workspace-form left-padding right-padding">
+      <div class="field label border small">
+        <input
+          id="workspace-path"
+          name="workspacePath"
+          value="${escapeAttribute(state.workspaceForm.path)}"
+          placeholder="/Users/me/project"
+          ${state.isSavingWorkspace ? " disabled" : ""}
+        />
+        <label for="workspace-path">Project directory</label>
+      </div>
+      <div class="row wrap">
+        <button class="border small" type="button" data-action="browse-workspace"${state.isSavingWorkspace ? " disabled" : ""}>
+          <i>drive_folder_upload</i>
+          <span>Browse</span>
+        </button>
+        <button class="border small" type="submit" data-workspace-submit="add"${state.isSavingWorkspace ? " disabled" : ""}>
+          <i>${state.isSavingWorkspace ? "progress_activity" : "folder_open"}</i>
+          <span>Add existing</span>
+        </button>
+        <button class="small" type="submit" data-workspace-submit="create"${state.isSavingWorkspace ? " disabled" : ""}>
+          <i>${state.isSavingWorkspace ? "progress_activity" : "create_new_folder"}</i>
+          <span>Create .cuer</span>
+        </button>
+      </div>
+    </form>
   `;
 }
 

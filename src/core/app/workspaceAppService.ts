@@ -16,7 +16,7 @@ import {
 } from "../accounts/accountManagerService.js";
 import { createId } from "../../utils/id.js";
 import { nowIso } from "../../utils/time.js";
-import { clearWorkflowFiles, resolveWorkspacePaths, workspaceExists } from "../../filesystem/workspace.js";
+import { clearWorkflowFiles, findNearestWorkspacePaths } from "../../filesystem/workspace.js";
 import {
   OPENAI_OAUTH_ENDPOINTS,
   createOpenAiOauthSession,
@@ -111,6 +111,16 @@ const WORKFLOW_EVENT_TYPES = [
 export class WorkspaceAppService {
   private readonly accountManager = new AccountManagerService();
 
+  initializeWorkspace(rootPath: string): WorkspaceOverview {
+    const context = WorkspaceContext.open(rootPath, { autoInitialize: true, discoverExisting: false });
+
+    try {
+      return buildWorkspaceOverview(context, null, this.accountManager);
+    } finally {
+      context.close();
+    }
+  }
+
   createProviderAccount(input: CreateProviderAccountInput): CreateProviderAccountResult {
     const context = WorkspaceContext.open(input.rootPath, { autoInitialize: true });
 
@@ -181,7 +191,7 @@ export class WorkspaceAppService {
     const context = WorkspaceContext.open(rootPath);
 
     try {
-      const project = context.repositories.projects.findByRootPath(rootPath);
+      const project = context.repositories.projects.findByRootPath(context.paths.rootPath);
       if (!project) {
         return {
           projectFound: false,
@@ -230,8 +240,7 @@ export class WorkspaceAppService {
   }
 
   tryGetWorkspaceOverview(rootPath: string): WorkspaceOverview | null {
-    const paths = resolveWorkspacePaths(rootPath);
-    if (!workspaceExists(paths)) {
+    if (!findNearestWorkspacePaths(rootPath)) {
       return null;
     }
 
@@ -245,15 +254,14 @@ export class WorkspaceAppService {
   }
 
   getPendingPlannerInquiry(rootPath: string): PendingPlannerInquirySummary | null {
-    const paths = resolveWorkspacePaths(rootPath);
-    if (!workspaceExists(paths)) {
+    if (!findNearestWorkspacePaths(rootPath)) {
       return null;
     }
 
     const context = WorkspaceContext.open(rootPath);
 
     try {
-      const project = context.repositories.projects.findByRootPath(rootPath);
+      const project = context.repositories.projects.findByRootPath(context.paths.rootPath);
       if (!project) {
         return null;
       }
@@ -291,7 +299,7 @@ export class WorkspaceAppService {
           goal: input.goal,
           projectId: project.id,
           projectName: project.name,
-          rootPath: input.rootPath,
+          rootPath: context.paths.rootPath,
         }),
       );
 

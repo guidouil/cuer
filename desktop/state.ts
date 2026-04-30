@@ -13,8 +13,10 @@ export const state: AppState = {
   deletingAccountId: null,
   debugPayload: null,
   errorMessage: null,
+  activeWorkspacePath: null,
   isLoadingOverview: true,
   isRunningPlanner: false,
+  isSavingWorkspace: false,
   isSavingAccount: false,
   lastPlannerResult: null,
   overview: null,
@@ -26,4 +28,8 @@ export const state: AppState = {
   plannerResponseJson: null,
   screen: "project",
   selectedProjectId: null,
+  workspaceForm: {
+    path: "",
+  },
+  workspacePaths: [],
 };

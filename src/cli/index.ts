@@ -31,7 +31,7 @@ async function main(): Promise<void> {
 
     switch (command) {
       case "init":
-        runInitCommand(rootPath, terminal);
+        runInitCommand(args[0] ?? rootPath, terminal);
         return;
       case "accounts":
         runAccountsCommand(rootPath, terminal);
@@ -100,7 +100,7 @@ function printHelp(): void {
   terminal.info("Cuer");
   terminal.info("");
   terminal.info("Usage:");
-  terminal.info("  cuer init");
+  terminal.info("  cuer init [project-dir]");
   terminal.info("  cuer accounts");
   terminal.info("  cuer add-account --provider <type> --name <label> [--auth <method>] [--base-url <url>] [--secret-env <ENV>]");
   terminal.info('  cuer plan "your objective"');

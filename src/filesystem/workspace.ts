@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 
 import type { Plan, Task, TaskDependency, TaskExecutionResultArtifact } from "../domain/index.js";
 
@@ -17,6 +17,11 @@ export interface WorkspacePaths {
   skillsDir: string;
 }
 
+export interface ResolveWorkspacePathsForOpenOptions {
+  autoInitialize?: boolean;
+  discoverExisting?: boolean;
+}
+
 export interface ClearedWorkflowFiles {
   removedExecutionArtifactCount: number;
   removedPlanSnapshotCount: number;
@@ -24,10 +29,11 @@ export interface ClearedWorkflowFiles {
 }
 
 export function resolveWorkspacePaths(rootPath: string): WorkspacePaths {
-  const workspaceDir = join(rootPath, ".cuer");
+  const resolvedRootPath = resolve(rootPath);
+  const workspaceDir = join(resolvedRootPath, ".cuer");
 
   return {
-    rootPath,
+    rootPath: resolvedRootPath,
     workspaceDir,
     dbPath: join(workspaceDir, "cuer.db"),
     configPath: join(workspaceDir, "config.json"),
@@ -37,6 +43,38 @@ export function resolveWorkspacePaths(rootPath: string): WorkspacePaths {
     promptsDir: join(workspaceDir, "prompts"),
     skillsDir: join(workspaceDir, "skills"),
   };
+}
+
+export function resolveWorkspacePathsForOpen(
+  rootPath: string,
+  options: ResolveWorkspacePathsForOpenOptions = {},
+): WorkspacePaths {
+  if (options.discoverExisting !== false) {
+    const existingPaths = findNearestWorkspacePaths(rootPath);
+    if (existingPaths) {
+      return existingPaths;
+    }
+  }
+
+  return resolveWorkspacePaths(rootPath);
+}
+
+export function findNearestWorkspacePaths(startPath: string): WorkspacePaths | null {
+  let currentPath = resolve(startPath);
+
+  while (true) {
+    const paths = resolveWorkspacePaths(currentPath);
+    if (workspaceExists(paths)) {
+      return paths;
+    }
+
+    const parentPath = dirname(currentPath);
+    if (parentPath === currentPath) {
+      return null;
+    }
+
+    currentPath = parentPath;
+  }
 }
 
 export function workspaceExists(paths: WorkspacePaths): boolean {

@@ -46,6 +46,20 @@ body.dark {
   object-fit: cover;
 }
 
+.workspace-form {
+  display: grid;
+  gap: 0.5rem;
+  padding-block: 0.25rem 0.75rem;
+}
+
+.workspace-form .field {
+  margin-block: 0;
+}
+
+.workspace-form button {
+  min-inline-size: 0;
+}
+
 .task-list {
   display: grid;
   gap: 0.75rem;

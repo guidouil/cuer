@@ -23,7 +23,7 @@ export function runStatusCommand(rootPath: string, terminal: Terminal): void {
       terminal.info(`Project gateway: ${accountSnapshot.projectWorkGateway.reason}`);
     }
 
-    const project = context.repositories.projects.findByRootPath(rootPath);
+    const project = context.repositories.projects.findByRootPath(context.paths.rootPath);
     if (!project) {
       terminal.info('Project: none yet. Add an account and run "cuer plan" to create the first project flow.');
       return;

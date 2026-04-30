@@ -43,7 +43,12 @@ export function applyPlannerResult(result: PlannerResult, goal: string): void {
 }
 
 export function applyOverviewState(overview: WorkspaceOverview): void {
+  const previousWorkspacePath = state.overview?.workspacePath ?? null;
   state.overview = overview;
+  state.activeWorkspacePath = overview.workspacePath;
+  if (previousWorkspacePath && previousWorkspacePath !== overview.workspacePath) {
+    resetWorkspaceScopedState();
+  }
   ensureAccountFormDefaults(overview.accountManager.providers);
   ensureSelectedProject(overview);
 
@@ -78,6 +83,15 @@ export function applyOverviewState(overview: WorkspaceOverview): void {
   if (!state.lastPlannerResult || state.lastPlannerResult.kind !== "questions") {
     state.screen = "project";
   }
+}
+
+export function activeWorkspaceRootPath(): string | null {
+  return state.activeWorkspacePath ?? state.overview?.workspacePath ?? null;
+}
+
+export function workspaceInvokeArgs(): { rootPath?: string } {
+  const rootPath = activeWorkspaceRootPath();
+  return rootPath ? { rootPath } : {};
 }
 
 export function selectedProject(): WorkspaceProjectSummary | null {
@@ -228,6 +242,18 @@ function ensureSelectedProject(overview: WorkspaceOverview): void {
     ?? overview.projects.find((summary) => summary.project.rootPath === overview.workspacePath)?.project.id
     ?? overview.projects[0]?.project.id
     ?? null;
+}
+
+function resetWorkspaceScopedState(): void {
+  state.debugPayload = null;
+  state.errorMessage = null;
+  state.lastPlannerResult = null;
+  state.pendingPlannerInquiry = null;
+  state.plannerActiveGoal = null;
+  state.plannerClarificationAnswers = {};
+  state.plannerGoal = "";
+  state.selectedProjectId = null;
+  resetPlannerResponseImport();
 }
 
 function ensureAccountFormDefaults(providers: ProviderCatalogItem[]): void {

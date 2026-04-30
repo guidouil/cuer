@@ -15,8 +15,14 @@ async function main(): Promise<void> {
     const [command, rootPath = cwd(), ...args] = readBridgeArgs(process.argv);
 
     switch (command) {
+      case "initialize-workspace":
+        writeJson(workspaceAppService.initializeWorkspace(rootPath));
+        return;
       case "workspace-overview":
         writeJson(workspaceAppService.getWorkspaceOverview(rootPath));
+        return;
+      case "try-workspace-overview":
+        writeJson(workspaceAppService.tryGetWorkspaceOverview(rootPath));
         return;
       case "create-provider-account": {
         const payloadJson = args[0]?.trim();

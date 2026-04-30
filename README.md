@@ -11,7 +11,7 @@ The repository now also includes a Tauri desktop shell that reuses the same Node
 V0 provides:
 
 - a Node.js + TypeScript CLI
-- local workspace bootstrap in `.cuer/`
+- local project workspace bootstrap in `.cuer/`
 - a local SQLite database powered by `better-sqlite3`
 - a shared Account Manager domain for providers, auth methods, credentials, access policies, usage events, and cost records
 - an OS keychain-backed secret storage abstraction
@@ -64,7 +64,7 @@ cuer help
 ## Available commands
 
 ```bash
-cuer init
+cuer init [project-dir]
 cuer accounts
 cuer add-account --provider openai --name "Primary OpenAI" --auth api_key --secret-env OPENAI_API_KEY
 cuer plan "Ship a first local workflow for task orchestration"
@@ -83,7 +83,7 @@ cuer status
 Equivalent dev usage:
 
 ```bash
-npm run dev -- init
+npm run dev -- init [project-dir]
 npm run dev -- accounts
 npm run dev -- add-account --provider openai --name "Primary OpenAI" --auth api_key --secret-env OPENAI_API_KEY
 npm run dev -- plan "Ship a first local workflow for task orchestration"
@@ -103,7 +103,7 @@ npm run dev -- status
 
 The intended order is now:
 
-1. `cuer init`
+1. `cuer init [project-dir]`
 2. `cuer add-account ...`
 3. `cuer plan ...`
 4. `cuer run`
@@ -128,6 +128,8 @@ On the first run, Tauri may take longer while Cargo compiles the desktop depende
 
 The desktop app currently provides:
 
+- a project-root switcher for multiple local `.cuer/` workspaces
+- controls to add an existing Cuer project directory or initialize `.cuer/` in a new project directory through the native folder picker
 - an Account Manager screen as the first visible workflow
 - listing of configured provider accounts with auth mode, base URL, access status, and redacted secret hints
 - a form to register provider accounts, auth type, base URL, API key or placeholder auth data, and an optional default model
@@ -157,13 +159,13 @@ Added:
 - `src/desktop/bridgeCli.ts` as a thin Node bridge that exposes JSON to the Tauri shell
 - `src/integrations/secrets/osKeychainSecretStore.ts` as the OS keychain-backed secret storage implementation
 - `src-tauri/` as the native desktop entrypoint
-- `desktop/` as the minimal frontend UI
+- `desktop/` as the minimal frontend UI, including the local project-root switcher state
 
 See [docs/account-manager-milestone.md](/Users/gui/Projects/cuer/docs/account-manager-milestone.md) for the milestone note.
 
 ## Workspace layout
 
-After `cuer init`, the current directory receives:
+After `cuer init`, the requested project directory receives:
 
 ```text
 .cuer/
@@ -214,13 +216,15 @@ src-tauri/
 
 ## Command behavior
 
-### `cuer init`
+### `cuer init [project-dir]`
 
-- creates `.cuer/`
+- creates `.cuer/` in the current directory or in `project-dir`
 - creates `config.json`
 - creates `cuer.db`
 - applies the initial SQLite schema
 - prepares the Account Manager foundation without creating a project yet
+
+Other commands recover the nearest existing `.cuer/` by walking upward from the current directory, so running `cuer status`, `cuer plan`, or `cuer run` from a project subdirectory uses the project-level workspace instead of creating nested state.
 
 ### `cuer accounts`
 

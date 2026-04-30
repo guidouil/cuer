@@ -10,7 +10,7 @@ export function runShowArtifactCommand(rootPath: string, args: string[], termina
   const context = WorkspaceContext.open(rootPath);
 
   try {
-    const project = context.repositories.projects.findByRootPath(rootPath);
+    const project = context.repositories.projects.findByRootPath(context.paths.rootPath);
     if (!project) {
       terminal.info('No project registered yet. Run "cuer init" or "cuer plan" first.');
       return;

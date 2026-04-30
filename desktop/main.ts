@@ -10,6 +10,7 @@ import { normalizeError } from "./format.js";
 import { renderApp } from "./render.js";
 import { state } from "./state.js";
 import { initializeSystemTheme } from "./theme.js";
+import { addWorkspacePath, loadWorkspacePaths, saveWorkspacePaths } from "./workspaceRegistry.js";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 
@@ -21,17 +22,42 @@ initializeSystemTheme();
 void initialize();
 
 async function initialize(): Promise<void> {
+  state.workspacePaths = loadWorkspacePaths();
+  state.activeWorkspacePath = state.workspacePaths[0] ?? null;
   render();
   await loadOverview();
 }
 
-async function loadOverview(): Promise<void> {
+export async function loadOverview(): Promise<void> {
+  state.isLoadingOverview = true;
   try {
-    const overview = await invoke<WorkspaceOverview>("get_workspace_overview");
+    const overview = await invoke<WorkspaceOverview>("get_workspace_overview", {
+      ...(state.activeWorkspacePath ? { rootPath: state.activeWorkspacePath } : {}),
+    });
     applyOverviewState(overview);
+    state.workspacePaths = addWorkspacePath(state.workspacePaths, overview.workspacePath);
+    saveWorkspacePaths(state.workspacePaths);
     state.debugPayload = overview;
   } catch (error) {
-    state.errorMessage = normalizeError(error);
+    if (!state.activeWorkspacePath) {
+      state.errorMessage = normalizeError(error);
+      return;
+    }
+
+    const failedWorkspacePath = state.activeWorkspacePath;
+    state.workspacePaths = state.workspacePaths.filter((path) => path !== failedWorkspacePath);
+    saveWorkspacePaths(state.workspacePaths);
+    state.activeWorkspacePath = null;
+
+    try {
+      const overview = await invoke<WorkspaceOverview>("get_workspace_overview");
+      applyOverviewState(overview);
+      state.workspacePaths = addWorkspacePath(state.workspacePaths, overview.workspacePath);
+      saveWorkspacePaths(state.workspacePaths);
+      state.debugPayload = overview;
+    } catch (fallbackError) {
+      state.errorMessage = `${normalizeError(error)} ${normalizeError(fallbackError)}`;
+    }
   } finally {
     state.isLoadingOverview = false;
     render();

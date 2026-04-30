@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import type { WorkspaceOverview } from "../src/core/app/workspaceAppTypes.js";
 import type { AuthMethodType, PlannerAnswer, ProviderType } from "../src/domain/index.js";
 import {
@@ -12,17 +13,118 @@ import {
   resumePendingPlannerInquiry,
   selectedProvider,
   shouldUseOpenAiBrowserOauth,
+  workspaceInvokeArgs,
 } from "./appState.js";
 import { normalizeError } from "./format.js";
 import { state } from "./state.js";
 import type { CreateProviderAccountResult, PlannerResult } from "./types.js";
+import { addWorkspacePath, saveWorkspacePaths } from "./workspaceRegistry.js";
 
 export function bindUi(render: () => void): void {
+  bindWorkspaceActions(render);
   bindNavigation(render);
   bindAccountActions(render);
   bindAccountForm(render);
   bindPlannerForm(render);
   bindPlannerClarificationForm(render);
+}
+
+function bindWorkspaceActions(render: () => void): void {
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-action="switch-workspace"]')) {
+    button.addEventListener("click", async () => {
+      const rootPath = button.dataset.workspacePath;
+      if (!rootPath || rootPath === state.overview?.workspacePath) {
+        return;
+      }
+
+      const previousWorkspacePath = state.activeWorkspacePath;
+      state.errorMessage = null;
+      state.activeWorkspacePath = rootPath;
+      state.isLoadingOverview = true;
+      render();
+
+      try {
+        const overview = await invoke<WorkspaceOverview>("get_workspace_overview", {
+          rootPath,
+        });
+        applyOverviewState(overview);
+        state.workspacePaths = addWorkspacePath(state.workspacePaths, overview.workspacePath);
+        saveWorkspacePaths(state.workspacePaths);
+        state.debugPayload = overview;
+      } catch (error) {
+        state.activeWorkspacePath = state.overview?.workspacePath ?? previousWorkspacePath;
+        state.errorMessage = normalizeError(error);
+      } finally {
+        state.isLoadingOverview = false;
+        render();
+      }
+    });
+  }
+
+  const form = document.querySelector<HTMLFormElement>("#workspace-form");
+  if (!form) {
+    return;
+  }
+
+  bindFormInput(form, "#workspace-path", (value) => {
+    state.workspaceForm.path = value;
+  });
+
+  const browseButton = form.querySelector<HTMLButtonElement>('[data-action="browse-workspace"]');
+  browseButton?.addEventListener("click", async () => {
+    try {
+      const selectedPath = await open({
+        canCreateDirectories: true,
+        directory: true,
+        multiple: false,
+        title: "Choose a project directory",
+      });
+      if (typeof selectedPath !== "string") {
+        return;
+      }
+
+      state.workspaceForm.path = selectedPath;
+      state.errorMessage = null;
+    } catch (error) {
+      state.errorMessage = normalizeError(error);
+    } finally {
+      render();
+    }
+  });
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const submitter = event instanceof SubmitEvent ? event.submitter : null;
+    const action = submitter instanceof HTMLButtonElement ? submitter.dataset.workspaceSubmit : "add";
+    const rootPath = state.workspaceForm.path.trim();
+    if (!rootPath) {
+      state.errorMessage = "Enter a project directory path.";
+      render();
+      return;
+    }
+
+    state.errorMessage = null;
+    state.isSavingWorkspace = true;
+    render();
+
+    try {
+      const overview = action === "create"
+        ? await invoke<WorkspaceOverview>("initialize_workspace", { rootPath })
+        : await openExistingWorkspace(rootPath);
+
+      applyOverviewState(overview);
+      state.workspacePaths = addWorkspacePath(state.workspacePaths, overview.workspacePath);
+      saveWorkspacePaths(state.workspacePaths);
+      state.workspaceForm.path = "";
+      state.debugPayload = overview;
+    } catch (error) {
+      state.errorMessage = normalizeError(error);
+    } finally {
+      state.isSavingWorkspace = false;
+      render();
+    }
+  });
 }
 
 function bindNavigation(render: () => void): void {
@@ -84,6 +186,7 @@ function bindAccountActions(render: () => void): void {
         payload: {
           accountId: pendingDeletion.accountId,
         },
+        ...workspaceInvokeArgs(),
       });
 
       applyOverviewState(overview);
@@ -171,9 +274,11 @@ function bindAccountForm(render: () => void): void {
       const result = usesBrowserOauth
         ? await invoke<CreateProviderAccountResult>("connect_openai_oauth", {
             payload: buildOpenAiOauthPayload(),
+            ...workspaceInvokeArgs(),
           })
         : await invoke<CreateProviderAccountResult>("create_provider_account", {
             payload: buildCreateProviderAccountPayload(),
+            ...workspaceInvokeArgs(),
           });
 
       applyOverviewState(result.workspace);
@@ -216,7 +321,10 @@ function bindPlannerForm(render: () => void): void {
     render();
 
     try {
-      const result = await invoke<PlannerResult>("run_planner", { goal });
+      const result = await invoke<PlannerResult>("run_planner", {
+        goal,
+        ...workspaceInvokeArgs(),
+      });
       applyPlannerResult(result, goal);
     } catch (error) {
       state.errorMessage = normalizeError(error);
@@ -307,10 +415,11 @@ function bindPlannerClarificationForm(render: () => void): void {
 
     try {
       const result = await invoke<PlannerResult>("run_planner", {
-        clarification_answers: clarificationAnswers,
+        clarificationAnswers,
         goal,
-        ...(requiresPlannerResponse ? { planner_name: plannerInquiry.planner } : {}),
-        ...(requiresPlannerResponse ? { planner_response_json: state.plannerResponseJson } : {}),
+        ...(requiresPlannerResponse ? { plannerName: plannerInquiry.planner } : {}),
+        ...(requiresPlannerResponse ? { plannerResponseJson: state.plannerResponseJson } : {}),
+        ...workspaceInvokeArgs(),
       });
       if (requiresPlannerResponse) {
         resetPlannerResponseImport();
@@ -323,6 +432,17 @@ function bindPlannerClarificationForm(render: () => void): void {
       render();
     }
   });
+}
+
+async function openExistingWorkspace(rootPath: string): Promise<WorkspaceOverview> {
+  const overview = await invoke<WorkspaceOverview | null>("try_workspace_overview", {
+    rootPath,
+  });
+  if (!overview) {
+    throw new Error('No Cuer workspace found there. Use "Create .cuer" to initialize that project directory.');
+  }
+
+  return overview;
 }
 
 function bindFormInput(form: HTMLFormElement, selector: string, apply: (value: string) => void): void {
